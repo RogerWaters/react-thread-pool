@@ -40,6 +40,10 @@ class ThreadPool
      * @var int
      */
     protected $createdPid;
+    /**
+     * @var int
+     */
+    private $port;
 
     /**
      * ThreadPool constructor.
@@ -52,6 +56,7 @@ class ThreadPool
         $this->loop = $loop;
         $this->createdPid = posix_getpid();
         $this->server = new ThreadPoolServer($loop,$port);
+        $this->port = $port;
     }
 
     public function OnThreadConnected($id,ConnectionInterface $connection)
@@ -111,5 +116,13 @@ class ThreadPool
             $this->loop = $this->loop->AfterFork();
         }
         return $this->loop;
+    }
+
+    /**
+     * @return int
+     */
+    public function getPort()
+    {
+        return $this->port;
     }
 }

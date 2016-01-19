@@ -1,8 +1,10 @@
 <?php
 namespace RogerWaters\ReactThreads;
 use Ratchet\ConnectionInterface;
+use Ratchet\Http\HttpServer;
 use Ratchet\MessageComponentInterface;
 use Ratchet\Server\IoServer;
+use Ratchet\WebSocket\WsServer;
 use React\EventLoop\LoopInterface;
 use React\Socket\Server;
 use React\Socket\ServerInterface;
@@ -27,7 +29,7 @@ class ThreadPoolServer implements MessageComponentInterface
     /**
      * @var ConnectionInterface[]
      */
-    protected $threadsWaitingForAssignment = array();
+    protected $threadsWaitingForAssignment;
 
     /**
      * ThreadPoolServer constructor.
@@ -37,8 +39,9 @@ class ThreadPoolServer implements MessageComponentInterface
     public function __construct(LoopInterface $loop, $port)
     {
         $this->socket = new Server($loop);
-        $this->ioServer = new IoServer($this,$this->socket);
+        $this->ioServer = new IoServer(new HttpServer(new WsServer($this)),$this->socket);
         $this->socket->listen($port);
+        $this->threadsWaitingForAssignment = new \SplObjectStorage();
     }
 
     /**
@@ -48,7 +51,7 @@ class ThreadPoolServer implements MessageComponentInterface
      */
     public function onOpen(ConnectionInterface $conn)
     {
-        // TODO: Implement onOpen() method.
+        $this->threadsWaitingForAssignment->attach($conn);
     }
 
     /**
@@ -58,7 +61,14 @@ class ThreadPoolServer implements MessageComponentInterface
      */
     public function onClose(ConnectionInterface $conn)
     {
-        // TODO: Implement onClose() method.
+        if($this->threadsWaitingForAssignment->contains($conn))
+        {
+            $this->threadsWaitingForAssignment->detach($conn);
+        }
+        else
+        {
+
+        }
     }
 
     /**

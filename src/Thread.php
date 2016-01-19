@@ -71,7 +71,6 @@ class Thread
 
     protected function InitializeExternal()
     {
-
     }
 
     protected function DoWork(LoopInterface $loop)

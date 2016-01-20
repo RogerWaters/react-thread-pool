@@ -2,11 +2,8 @@
 namespace RogerWaters\ReactThreads;
 use InvalidArgumentException;
 use Ratchet\ConnectionInterface;
-use Ratchet\MessageComponentInterface;
-use Ratchet\Server\IoServer;
 use React\EventLoop\LoopInterface;
-use React\Socket\Server;
-use React\Socket\ServerInterface;
+use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 
 /**
  * Created by PhpStorm.
@@ -17,7 +14,7 @@ use React\Socket\ServerInterface;
 class ThreadPool
 {
     /**
-     * @var LoopInterface
+     * @var ForkableLoopInterface
      */
     protected $loop;
 
@@ -47,11 +44,11 @@ class ThreadPool
 
     /**
      * ThreadPool constructor.
-     * @param LoopInterface $loop
+     * @param ForkableLoopInterface $loop
      * @param int $port
      * @throws \React\Socket\ConnectionException
      */
-    public function __construct(LoopInterface $loop,$port)
+    public function __construct(ForkableLoopInterface $loop,$port = 53535)
     {
         $this->loop = $loop;
         $this->createdPid = posix_getpid();
@@ -65,7 +62,9 @@ class ThreadPool
     }
 
     /**
+     * Starts the thread and returns the pid associated with
      * @param Thread $thread
+     * @return int
      */
     public function StartThread(Thread $thread)
     {
@@ -113,7 +112,11 @@ class ThreadPool
                 $cleanupFunction($id);
             }
 
-            $this->loop = $this->loop->AfterFork();
+            $this->loop = $this->loop->afterForkChild();
+        }
+        else
+        {
+            $this->loop->afterForkParent();
         }
         return $this->loop;
     }

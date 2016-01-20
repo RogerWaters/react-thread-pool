@@ -38,30 +38,17 @@ class Thread
         $this->cleanupFunctionId = $this->pool->RegisterAfterForkCleanup(function($id)
         {
             $this->pool = null;
-            if($id === $this->cleanupFunctionId)
+            if($id !== $this->cleanupFunctionId)
             {
+                //if another thread gets forked destroy every ressource bound to this thread
                 $this->FreeMemoryForAnotherThread();
+            }
+            else
+            {
+
             }
         });
 
-        $pid = pcntl_fork();
-        if($pid <= -1 )
-        {
-            throw new \RuntimeException("Unable to fork child: ".pcntl_strerror(pcntl_get_last_error()));
-        }
-        elseif($pid === 0)
-        {
-            //child proc
-            $this->InitializeExternal();
-            $loop = $this->pool->AfterFork();
-            $this->DoWork($loop);
-            exit();
-        }
-        else
-        {
-            $this->pool->AfterFork();
-            return $pid;
-        }
     }
 
     protected function FreeMemoryForAnotherThread()

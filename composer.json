@@ -3,8 +3,16 @@
   "description": "Setting up an reusable Thread-Pool to extend React server with parallel processing ability",
   "minimum-stability": "dev",
   "license": "MIT",
+  "repositories": [
+    {
+      "type": "pear",
+      "url": "http://pear.php.net"
+    }
+  ],
   "require": {
-    "cboden/ratchet": "dev-master"
+    "php": ">=5.4.0",
+    "cboden/ratchet": "dev-master",
+    "ext-libevent": ">=0.1.0"
   },
   "autoload":
   {

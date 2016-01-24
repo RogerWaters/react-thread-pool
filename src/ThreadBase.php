@@ -12,7 +12,7 @@ use Evenement\EventEmitterTrait;
 use React\EventLoop\Timer\TimerInterface;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 
-class ThreadBase
+abstract class ThreadBase
 {
     use EventEmitterTrait;
 
@@ -31,14 +31,10 @@ class ThreadBase
      */
     private $childPid = null;
 
-    /**
-     * @var \SplQueue
-     */
-    protected $workList;
+    protected $isExternal = false;
 
     public function __construct(ForkableLoopInterface $loop)
     {
-        $this->workList = new \SplQueue();
         $this->loop = $loop;
     }
 
@@ -64,7 +60,9 @@ class ThreadBase
             //child proc
             try
             {
-                $this->InitializeExternal();
+                $this->isExternal = true;
+                $this->loop = $this->loop->afterForkChild();
+                $this->InitializeExternal($this->loop);
             }
             catch (\Exception $e)
             {
@@ -79,15 +77,7 @@ class ThreadBase
         }
     }
 
-    protected function InitializeExternal()
-    {
-        $this->loop = $this->loop->afterForkChild();
-        /** @var ThreadWork $work */
-        while(($work = $this->workList->dequeue()) instanceof ThreadWork)
-        {
-            $work->DoWork($this,$this->loop);
-        }
-    }
+    protected abstract function InitializeExternal(ForkableLoopInterface $loop);
 
     protected function InitializeInternal()
     {
@@ -99,7 +89,6 @@ class ThreadBase
             {
                 case $this->childPid: //donePid is child pid
                     //child done
-                    echo "Done".PHP_EOL;
                     $this->running = false;
                     $timer->cancel();
                     $this->emit('stopped',array($this->childPid,$status,$this));
@@ -107,17 +96,13 @@ class ThreadBase
                 case 0: //donePid is empty
                     //everything fine.
                     //process still running
-                    echo "Running".PHP_EOL;
                     break;
                 case -1://donePid is unknown
                 default:
-                    echo "Error".PHP_EOL;
                     $this->emit('error',array(new \RuntimeException("$this->childPid PID returned unexpected status. Maybe its not a child of this.")));
                     break;
             }
         });
-        //free worklist internal as works will be performed external
-        $this->workList = new \SplQueue();
     }
 
     /**
@@ -128,17 +113,20 @@ class ThreadBase
         return $this->running;
     }
 
-    /**
-     * @param ThreadWork $work
-     * @return $this
-     */
-    public function EnQueueWork(ThreadWork $work)
+    public function Kill()
     {
-        if($this->IsRunning())
+        if($this->isExternal)
         {
-            throw new \InvalidArgumentException("Cannot attach work while thread is running. Ether wait for thread to complete enqueue and start again or create an new thread.");
+            //stop process
+            exit();
         }
-        $this->workList->enqueue($work);
-        return $this;
+        else
+        {
+            if($this->running)
+            {
+                posix_kill($this->childPid,SIGTERM);
+            }
+            //ignore if thread is not running
+        }
     }
 }

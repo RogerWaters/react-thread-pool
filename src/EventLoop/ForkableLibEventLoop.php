@@ -44,7 +44,7 @@ class ForkableLibEventLoop implements ForkableLoopInterface
         {
             $this->createTimerCallback();
         }
-        if($this->timerCallback === null)
+        if($this->streamCallback === null)
         {
             $this->createStreamCallback();
         }

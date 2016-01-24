@@ -5,66 +5,74 @@
  * Date: 19.01.2016
  * Time: 16:15
  */
-use React\EventLoop\Timer\TimerInterface;
+use RogerWaters\ReactThreads\ClientThread;
 use RogerWaters\ReactThreads\EventLoop\ForkableLibEventLoop;
-use RogerWaters\ReactThreads\ThreadBase;
-use RogerWaters\ReactThreads\ThreadWork;
+use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
+use RogerWaters\ReactThreads\ThreadPool;
 
 include ('./../vendor/autoload.php');
-/*include ('./../src/ThreadBase.php');
-include ('./../src/ThreadPool.php');
-include ('./../src/Thread.php');
-include ('./../src/ThreadPoolServer.php');
-include ('./../src/Protocol/BinaryBuffer.php');
-include ('./../src/EventLoop/ForkableLoopInterface.php');
-include ('./../src/EventLoop/ForkableLibEventLoop.php');
-include ('./../src/ThreadWork.php');
-*/
-class TestWork extends ThreadWork
+
+class echoWork extends \RogerWaters\ReactThreads\ThreadWork
 {
-    protected $workBefore;
-    protected $result = 0;
-    public function __construct(TestWork $workBefore = null)
+    public function DoWork(\RogerWaters\ReactThreads\ThreadBase $base, ForkableLoopInterface $loop)
     {
-        $this->workBefore = $workBefore;
+        sleep(1);
+        echo "Working".PHP_EOL;
+        sleep(1);
+    }
+}
+
+class TalkingThread extends ClientThread
+{
+    public function Talk($message)
+    {
+        if($this->isExternal)
+        {
+            echo "Got message from Parent: $message".PHP_EOL;
+            $this->TalkBack('Thanks for message ('.posix_getpid().'): '.$message);
+        }
+        else
+        {
+            $this->CallOnChild(__FUNCTION__,func_get_args());
+        }
     }
 
-    public function DoWork(ThreadBase $base, \RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface $loop)
+
+    public function TalkBack($message)
     {
-        if($this->workBefore instanceof TestWork)
+        if($this->isExternal === false)
         {
-            $this->result = $this->workBefore->result;
+            echo "Got message from Child: $message".PHP_EOL;
         }
-        $counter = 0;
-        for($i = 0; $i < 10; $i++)
+        else
         {
-            echo "Work Run: $i".PHP_EOL;
-            sleep(1);
-            $counter++;
+            $this->CallOnParent(__FUNCTION__,func_get_args());
         }
-        $this->result += $counter;
-        echo "Done calculation with result: $this->result".PHP_EOL;
     }
 }
 
 $loop = new ForkableLibEventLoop();
-$thread = new ThreadBase($loop);
+$pool = new ThreadPool($loop);
 
-
-
-$work = new TestWork();
-
-$thread->on('stopped',function($threadPid, $status, ThreadBase $base) use ($work)
+for($i = 0; $i < 10; $i++)
 {
-    echo "Thread ".get_class($base)." is done. Restarting...".PHP_EOL;
-    $base->EnQueueWork($work);
-    $base->start();
-});
 
+    $thread = new TalkingThread($loop,$pool);
 
-$thread->EnQueueWork($work)
-    ->EnQueueWork(($work = new TestWork($work)))
-    ->EnQueueWork(($work = new TestWork($work)));
-$thread->start();
+    $thread->start();
+
+    $timer = $loop->addPeriodicTimer(1,function() use($thread)
+    {
+        $thread->Talk('Hallo World '.posix_getpid());
+    });
+
+    $loop->addTimer(10,function() use ($thread,$timer)
+    {
+        $thread->Stop();
+        $timer->cancel();
+    });
+}
 
 $loop->run();
+
+die();

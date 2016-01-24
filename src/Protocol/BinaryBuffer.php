@@ -6,7 +6,7 @@
  * Time: 15:59
  */
 
-namespace Protocol;
+namespace RogerWaters\ReactThreads\Protocol;
 
 
 class BinaryBuffer

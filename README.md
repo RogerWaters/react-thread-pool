@@ -9,18 +9,18 @@ Tests: none<br />
 
 Create an EventLoop:
 If you have pect/libevent installed:
-<pre><code>
+<pre><code class="highlight highlight-text-html-php">
 $loop = new ForkableLibEventLoop();
 </code></pre>
 <br />
 Else use:
-<pre><code>
+<pre><code class="highlight highlight-text-html-php">
 $loop = new ForkableStreamSelectEventLoop();
 </code></pre>
 <br/>
 <br/>
 Creating an default thread to do heavy work outside your parent process
-<pre><code>
+<pre><code class="highlight highlight-text-html-php">
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\ThreadBase;
 

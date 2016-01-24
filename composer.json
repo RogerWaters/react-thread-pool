@@ -1,14 +1,8 @@
 {
   "name": "rogerwaters/react-thread-pool",
-  "description": "Setting up an reusable Thread-Pool to extend React server with parallel processing ability",
+  "description": "Multiprocessing library for PHP based on pcntl_fork() and reactphp",
   "minimum-stability": "dev",
   "license": "MIT",
-  "repositories": [
-    {
-      "type": "pear",
-      "url": "http://pear.php.net"
-    }
-  ],
   "require": {
     "php": ">=5.4.0",
     "react/event-loop": "v0.4.1",
@@ -19,5 +13,8 @@
     "psr-4": {
       "RogerWaters\\ReactThreads\\": "src"
     }
+  },
+  "suggest": {
+    "ext-libevent": ">=0.1.0"
   }
 }

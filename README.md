@@ -5,9 +5,17 @@ This is a multiprocessing library for PHP based on pcntl_fork().<br />
 Status: alpha<br />
 Tests: none<br />
 
+## Requirements
+- Linux/Unix platform
+- PHP >= 5.4
+- custom functions (pcntl_fork, pcntl_waitpid, posix_getpid)
+- <a href="https://github.com/reactphp/event-loop" target="_blank">reactphp/event-loop</a>
+- <a href="https://github.com/igorw/evenement" target="_blank">igorw/evenement</a>
+- [optional] Libevent (pect/libevent-0.1.0)
+
 ## Basic Usage
 
-Create an EventLoop:
+Create an EventLoop:<br />
 If you have pect/libevent installed:
 ```php
 $loop = new ForkableLibEventLoop();
@@ -18,8 +26,7 @@ Else use:
 $loop = new ForkableStreamSelectEventLoop();
 ```
 <br/>
-<br/>
-Creating an default thread to perform heavy work outside your parent process
+Creating a default thread to perform heavy work outside your parent process:
 ```php
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\ThreadBase;
@@ -35,7 +42,7 @@ class ExampleThread extends ThreadBase
 }
 ```
 <br/>
-
+All together:
 ```php
 //create thread
 $thread = new ExampleThread($loop);
@@ -56,14 +63,7 @@ $thread->on('stopped',function() use ($loop)
 $loop->run();
 ```
 
-## Requirements
-- Linux/Unix platform
-- PHP >= 5.4
-- <a href="https://github.com/reactphp/event-loop" target="_blank">reactphp/event-loop</a>
-- <a href="https://github.com/igorw/evenement" target="_blank">igorw/evenement</a>
-- [optional] Libevent (pect/libevent-0.1.0)
-
-## Examples
+## More examples
 See /examples folder
 
 ## TODO:
@@ -71,5 +71,6 @@ See /examples folder
 - Tests
 - More examples
 - Ticket on react/event-loop how to consolidate the EventLoop Interfaces
+- Refactor code for better readability
 
 If you have any issues or feature request, feel free to create an ticket

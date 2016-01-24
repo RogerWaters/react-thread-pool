@@ -5,6 +5,13 @@ This is a multiprocessing library for PHP based on pcntl_fork().<br />
 Status: alpha<br />
 Tests: none<br />
 
+## Features
+- Running Parallel Processes out of a single Process
+- Give the entire environment to the Thread without thinking on serialisation
+- Control the thread (Start, Stop, Kill) + Custom messages
+- Running tons of threads on an single ThreadPool (be careful with your processor)
+- Setting up threads to observe external resources
+
 ## Requirements
 - Linux/Unix platform
 - PHP >= 5.4
@@ -57,6 +64,8 @@ $thread->on('stopped',function() use ($loop)
 //run the loop to wait for completion
 $loop->run();
 ```
+
+For communicable threads see example_3.php and example_4.php
 
 ## More examples
 See /examples folder

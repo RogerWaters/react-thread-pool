@@ -62,7 +62,7 @@ abstract class ThreadBase
             {
                 $this->isExternal = true;
                 $this->loop = $this->loop->afterForkChild();
-                $this->InitializeExternal($this->loop);
+                $this->initializeExternal($this->loop);
             }
             catch (\Exception $e)
             {
@@ -72,14 +72,14 @@ abstract class ThreadBase
         }
         else
         {
-            $this->InitializeInternal();
+            $this->initializeInternal();
             return $pid;
         }
     }
 
-    protected abstract function InitializeExternal(ForkableLoopInterface $loop);
+    protected abstract function initializeExternal(ForkableLoopInterface $loop);
 
-    protected function InitializeInternal()
+    protected function initializeInternal()
     {
         $this->loop->afterForkParent();
         $this->loop->addPeriodicTimer(5,function(TimerInterface $timer)
@@ -108,12 +108,12 @@ abstract class ThreadBase
     /**
      * @return bool
      */
-    public function IsRunning()
+    public function isRunning()
     {
         return $this->running;
     }
 
-    public function Kill()
+    public function kill()
     {
         if($this->isExternal())
         {

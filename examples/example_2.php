@@ -35,11 +35,11 @@ $thread = new EchoThread($loop);
 $loop->addPeriodicTimer(3,function(TimerInterface $timer) use ($thread)
 {
     //check if thread is running
-    if($thread->IsRunning())
+    if ($thread->isRunning())
     {
         echo "Thread is Running... Kill it!".PHP_EOL;
         //cancel everything the thread is doing
-        $thread->Kill();
+        $thread->kill();
     }
     else
     {
@@ -53,10 +53,10 @@ $loop->addPeriodicTimer(3,function(TimerInterface $timer) use ($thread)
 $loop->addTimer(30,function(TimerInterface $timer) use ($thread)
 {
     //check if thread is running
-    if($thread->IsRunning())
+    if ($thread->isRunning())
     {
         //kill if its running for an clean shutdown
-        $thread->Kill();
+        $thread->kill();
     }
     $timer->getLoop()->stop();
 });

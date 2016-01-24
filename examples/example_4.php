@@ -38,7 +38,7 @@ class StreamObserverThread extends ClientThread
         $this->stream = $stream;
     }
 
-    protected function InitializeExternal(ForkableLoopInterface $loop)
+    protected function initializeExternal(ForkableLoopInterface $loop)
     {
         //stream_set_blocking($this->stream,0);
         $loop->addReadStream($this->stream,function($stream)
@@ -47,10 +47,10 @@ class StreamObserverThread extends ClientThread
             //stdin takes the \n in the message so trim it
             $message = strtolower(rtrim($message));
             //calling the EventEmiiter::emit() function on parent
-            $this->CallOnParent('emit',array('stream_message',array($message)));
+            $this->callOnParent('emit', array('stream_message', array($message)));
         });
         //don't forget the parent logic
-        parent::InitializeExternal($loop);
+        parent::initializeExternal($loop);
     }
 }
 
@@ -69,7 +69,7 @@ $thread->on('stream_message',function($message) use ($loop,$thread)
     {
         echo "Stop process".PHP_EOL;
         //hold on listener
-        $thread->Kill();
+        $thread->kill();
         //stop the parent process
         $loop->stop();
     }

@@ -73,8 +73,8 @@ class ThreadConnection
             //$message = fread($conn,1024);
             if($message !== '' && $message !== false)
             {
-                $this->buffer->PushData($message);
-                foreach ($this->buffer->GetMessages() as $messageData)
+                $this->buffer->pushData($message);
+                foreach ($this->buffer->getMessages() as $messageData)
                 {
                     $messageData = unserialize($messageData);
                     $this->emit('message',array($this,$messageData));
@@ -90,9 +90,9 @@ class ThreadConnection
         $this->writeAsync = $writeAsync;
     }
 
-    public function Write($data)
+    public function write($data)
     {
-        $this->dataBuffer .= $this->buffer->EncodeMessage(serialize($data));
+        $this->dataBuffer .= $this->buffer->encodeMessage(serialize($data));
         if($this->writeAsync)
         {
             if($this->writeEvent === false)
@@ -130,7 +130,7 @@ class ThreadConnection
         $this->connection = null;
     }
 
-    public function SetId($id)
+    public function setId($id)
     {
         $this->id = $id;
     }
@@ -138,7 +138,7 @@ class ThreadConnection
     /**
      * @return string
      */
-    public function GetId()
+    public function getId()
     {
         return $this->id;
     }

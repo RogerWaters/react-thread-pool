@@ -22,33 +22,33 @@ class BinaryBuffer
     {
     }
 
-    public function PushData($data)
+    public function pushData($data)
     {
         $this->bufferData .= $data;
-        while($this->ParseBuffer())
+        while ($this->parseBuffer())
         {
             //... waiting while parsing...
         }
     }
 
-    public function HasMessages()
+    public function hasMessages()
     {
         return count($this->messages) > 0;
     }
 
-    protected function ParseBuffer()
+    protected function parseBuffer()
     {
         if($this->headerReceived === false)
         {
-            return $this->ReceiveHeader();
+            return $this->receiveHeader();
         }
         else
         {
-            return $this->ReceiveBody();
+            return $this->receiveBody();
         }
     }
 
-    protected function ReceiveHeader()
+    protected function receiveHeader()
     {
         if(strlen($this->bufferData) > 8)
         {
@@ -61,7 +61,7 @@ class BinaryBuffer
         return false;
     }
 
-    protected function ReceiveBody()
+    protected function receiveBody()
     {
         if(strlen($this->bufferData) >= $this->waitingFor)
         {
@@ -73,14 +73,14 @@ class BinaryBuffer
         return false;
     }
 
-    public function GetMessages()
+    public function getMessages()
     {
         $messages = $this->messages;
         $this->messages = array();
         return $messages;
     }
 
-    public static function EncodeMessage($message)
+    public static function encodeMessage($message)
     {
         $waitingData = strlen($message);
         $header = str_pad((string)$waitingData,8,'0',STR_PAD_LEFT);

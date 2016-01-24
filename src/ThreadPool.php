@@ -34,7 +34,6 @@ class ThreadPool
     /**
      * ThreadPool constructor.
      * @param ForkableLoopInterface $loop
-     * @throws \React\Socket\ConnectionException
      */
     public function __construct(ForkableLoopInterface $loop)
     {
@@ -50,7 +49,7 @@ class ThreadPool
                 //expected header received
                 if(isset($message['action'],$message['parameters']) && $message['action'] === '__connect')
                 {
-                    $this->OnThreadConnected($message['parameters'][0],$threadConnection);
+                    $this->onThreadConnected($message['parameters'][0], $threadConnection);
                 }
                 else
                 {
@@ -60,17 +59,17 @@ class ThreadPool
             });
             $threadConnection->once('close',function() use ($threadConnection)
             {
-                if($threadConnection->GetId() !== null)
+                if ($threadConnection->getId() !== null)
                 {
                     foreach ($this->threads as $thread)
                     {
                         if($thread->getId() === $thread->getId())
                         {
                             //make sure process going down
-                            $thread->Kill();
+                            $thread->kill();
                             $this->threads->detach($thread);
 
-                            unset($this->connections[$threadConnection->GetId()]);
+                            unset($this->connections[$threadConnection->getId()]);
                             unset($this->callbacks[$thread->getId()]);
                             $threadConnection->removeAllListeners('message');
                             break;
@@ -84,14 +83,14 @@ class ThreadPool
         $this->threads = new \SplObjectStorage();
     }
 
-    protected function OnThreadConnected($id,ThreadConnection $connection)
+    protected function onThreadConnected($id, ThreadConnection $connection)
     {
         foreach ($this->threads as $thread)
         {
             if($thread->getId() === $id)
             {
-                $connection->SetId($id);
-                $this->connections[$connection->GetId()] = $connection;
+                $connection->setId($id);
+                $this->connections[$connection->getId()] = $connection;
                 $connection->on('message',function(ThreadConnection $connectino, $messageData) use ($id)
                 {
                     $callback = $this->callbacks[$id];
@@ -106,7 +105,7 @@ class ThreadPool
         return $this->endpoint;
     }
 
-    public function RegisterThread(ClientThread $thread,$messageCallback)
+    public function registerThread(ClientThread $thread, $messageCallback)
     {
         if($this->endpoint !== $thread->getEndpoint())
         {
@@ -125,11 +124,11 @@ class ThreadPool
      * @param ClientThread $thread
      * @param array $message
      */
-    public function SendToClient(ClientThread $thread, array $message)
+    public function sendToClient(ClientThread $thread, array $message)
     {
-        if($this->IsConnected($thread))
+        if ($this->isConnected($thread))
         {
-            $this->connections[$thread->getId()]->Write($message);
+            $this->connections[$thread->getId()]->write($message);
         }
         else
         {
@@ -141,7 +140,7 @@ class ThreadPool
      * @param ClientThread $thread
      * @return bool
      */
-    public function IsConnected(ClientThread $thread)
+    public function isConnected(ClientThread $thread)
     {
         return isset($this->connections[$thread->getId()]);
     }

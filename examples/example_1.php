@@ -16,7 +16,7 @@ include('./../vendor/autoload.php');
  */
 class EchoThread extends ThreadBase
 {
-    protected function InitializeExternal(ForkableLoopInterface $loop)
+    protected function initializeExternal(ForkableLoopInterface $loop)
     {
         //your complicated work goes here
         for($i = 0; $i < 10; $i++)
@@ -40,7 +40,7 @@ $thread->start();
 //you can do something in parent without affecting performance
 $loop->addPeriodicTimer(1,function(TimerInterface $timer) use ($thread)
 {
-    if($thread->IsRunning())
+    if ($thread->isRunning())
     {
         echo "Thread is still running".PHP_EOL;
     }

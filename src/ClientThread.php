@@ -38,7 +38,7 @@ class ClientThread extends ThreadBase
         parent::__construct($loop);
         $this->endpoint = $pool->getEndpoint();
         $this->id = spl_object_hash($this);
-        $pool->RegisterThread($this,function($action,array $parameters = array())
+        $pool->registerThread($this, function ($action, array $parameters = array())
         {
             call_user_func_array(array($this,$action),$parameters);
         });
@@ -61,11 +61,11 @@ class ClientThread extends ThreadBase
         return $this->id;
     }
 
-    protected function CallOnParent($action,array $parameters = array())
+    protected function callOnParent($action, array $parameters = array())
     {
         if($this->isExternal())
         {
-            $this->client->Write($this->Encode($action,$parameters));
+            $this->client->write($this->encode($action, $parameters));
         }
         else
         {
@@ -73,7 +73,7 @@ class ClientThread extends ThreadBase
         }
     }
 
-    protected function CallOnChild($action,array $parameters = array())
+    protected function callOnChild($action, array $parameters = array())
     {
         if($this->isExternal())
         {
@@ -82,16 +82,16 @@ class ClientThread extends ThreadBase
         else
         {
             /** @noinspection PhpInternalEntityUsedInspection */
-            $this->pool->SendToClient($this,$this->Encode($action,$parameters));
+            $this->pool->sendToClient($this, $this->encode($action, $parameters));
         }
     }
 
-    protected function Encode($action, array $parameters = array())
+    protected function encode($action, array $parameters = array())
     {
         return array('action' => $action,'parameters' => $parameters);
     }
 
-    protected function InitializeExternal(ForkableLoopInterface $loop)
+    protected function initializeExternal(ForkableLoopInterface $loop)
     {
         $this->pool = null;
 
@@ -109,12 +109,12 @@ class ClientThread extends ThreadBase
         });
 
         //write connect message directly as we require to attach to pool
-        $this->client->Write($this->Encode('__connect',array($this->id)));
+        $this->client->write($this->encode('__connect', array($this->id)));
 
         $loop->run();
     }
 
-    public function Stop()
+    public function stop()
     {
         if($this->isExternal())
         {
@@ -123,7 +123,7 @@ class ClientThread extends ThreadBase
         }
         else
         {
-            $this->CallOnChild(__FUNCTION__,func_get_args());
+            $this->callOnChild(__FUNCTION__, func_get_args());
         }
     }
 }

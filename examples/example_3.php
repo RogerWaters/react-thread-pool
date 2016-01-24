@@ -20,7 +20,7 @@ class DownloaderThread extends ClientThread
      * Functin for downloading urls external
      * @param string $url
      */
-    public function Download($url)
+    public function download($url)
     {
         //first check if the function is called external
         if($this->isExternal())
@@ -34,7 +34,7 @@ class DownloaderThread extends ClientThread
         {
             //we are in the parent context
             //just redirect to the thread
-            $this->CallOnChild(__FUNCTION__,func_get_args());
+            $this->callOnChild(__FUNCTION__, func_get_args());
         }
     }
 }
@@ -77,14 +77,14 @@ $loop->addPeriodicTimer(1,function(TimerInterface $timer) use ($thread,&$urls)
         //download the url external
         //each url will take 3 seconds
         //but we enqueue url every second;
-        $thread->Download($url);
+        $thread->download($url);
     }
     else
     {
         //all urls submitted
         //we can tell the thread to close after completion
         //use Stop instead of Kill wil wait for all works to complete before closing
-        $thread->Stop();
+        $thread->stop();
         echo "Tell Thread to stop after current works".PHP_EOL;
         //waiting for the thread to stop
         //this can take some tome...

@@ -11,7 +11,6 @@
 
 namespace RogerWaters\ReactThreads\EventLoop;
 
-
 use React\EventLoop\Tick\FutureTickQueue;
 use React\EventLoop\Tick\NextTickQueue;
 use React\EventLoop\Timer\Timer;

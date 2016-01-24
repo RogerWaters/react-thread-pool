@@ -14,11 +14,12 @@ Tests: none<br />
 
 ## Requirements
 - Linux/Unix platform
-- PHP >= 5.4
+- PHP >= 5.4 (also PHP 7)
 - custom functions (pcntl_fork, pcntl_waitpid, posix_getpid)
 - <a href="https://github.com/reactphp/event-loop" target="_blank">reactphp/event-loop</a>
 - <a href="https://github.com/igorw/evenement" target="_blank">igorw/evenement</a>
-- [optional] Libevent (pect/libevent-0.1.0)
+- [optional] PHP Extension libevent (pect/libevent-0.1.0)
+- [optional] PHP Extension Event <http://php.net/manual/en/book.event.php>
 
 ## Basic Usage
 

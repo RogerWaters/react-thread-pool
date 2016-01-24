@@ -33,6 +33,11 @@ class ClientThread extends ThreadBase
      */
     private $pool;
 
+    /**
+     * ClientThread constructor.
+     * @param ForkableLoopInterface $loop
+     * @param ThreadPool $pool
+     */
     public function __construct(ForkableLoopInterface $loop, ThreadPool $pool)
     {
         parent::__construct($loop);
@@ -46,6 +51,7 @@ class ClientThread extends ThreadBase
     }
 
     /**
+     * The endpoint the thread connects to
      * @return string
      */
     public function getEndpoint()
@@ -54,6 +60,7 @@ class ClientThread extends ThreadBase
     }
 
     /**
+     * The object_hash created for this object
      * @return string
      */
     public function getId()
@@ -61,6 +68,12 @@ class ClientThread extends ThreadBase
         return $this->id;
     }
 
+    /**
+     * Encode and send the message to the parent
+     * will call method $action on this instance in the parent context
+     * @param string $action
+     * @param array $parameters
+     */
     protected function callOnParent($action, array $parameters = array())
     {
         if($this->isExternal())
@@ -73,6 +86,12 @@ class ClientThread extends ThreadBase
         }
     }
 
+    /**
+     * Encode and send the message to the external process
+     * will call method $action on this instance in the child context
+     * @param string $action
+     * @param array $parameters
+     */
     protected function callOnChild($action, array $parameters = array())
     {
         if($this->isExternal())
@@ -86,11 +105,22 @@ class ClientThread extends ThreadBase
         }
     }
 
+    /**
+     * Format message to send over connection
+     * @param string $action
+     * @param array $parameters
+     * @return array
+     */
     protected function encode($action, array $parameters = array())
     {
         return array('action' => $action,'parameters' => $parameters);
     }
 
+    /**
+     * Creates every logic required for the thread to work.
+     * Will connect to the pool endpoint and provide two way communication
+     * @param ForkableLoopInterface $loop
+     */
     protected function initializeExternal(ForkableLoopInterface $loop)
     {
         $this->pool = null;
@@ -114,6 +144,9 @@ class ClientThread extends ThreadBase
         $loop->run();
     }
 
+    /**
+     * Stop the external process after all current operations completed
+     */
     public function stop()
     {
         if($this->isExternal())

@@ -31,13 +31,23 @@ abstract class ThreadBase
      */
     private $childPid = null;
 
+    /**
+     * @var bool
+     */
     private $isExternal = false;
 
+    /**
+     * ThreadBase constructor.
+     * @param ForkableLoopInterface $loop
+     */
     public function __construct(ForkableLoopInterface $loop)
     {
         $this->loop = $loop;
     }
 
+    /**
+     * Create the external process and run the thread
+     */
     public function start()
     {
         if($this->running === false)
@@ -48,6 +58,10 @@ abstract class ThreadBase
         }
     }
 
+    /**
+     * will split the current process into to separated copies
+     * @return int
+     */
     protected function fork()
     {
         $pid = pcntl_fork();
@@ -77,8 +91,18 @@ abstract class ThreadBase
         }
     }
 
+    /**
+     * Implement your entire thread logic starting at this point
+     * Function will be called with an working stable loop
+     * @param ForkableLoopInterface $loop
+     */
     protected abstract function initializeExternal(ForkableLoopInterface $loop);
 
+    /**
+     * Logic required to observe the process
+     * Make sure no zombies on the floor
+     * Checks if the process completed and requests the status code
+     */
     protected function initializeInternal()
     {
         $this->loop->afterForkParent();
@@ -106,6 +130,7 @@ abstract class ThreadBase
     }
 
     /**
+     * Check if the external process is running
      * @return bool
      */
     public function isRunning()
@@ -113,6 +138,11 @@ abstract class ThreadBase
         return $this->running;
     }
 
+    /**
+     * Force the external process to complete
+     * The process gets immediately terminated
+     * However it can take some time for the parent to consume the status
+     */
     public function kill()
     {
         if($this->isExternal())
@@ -131,6 +161,7 @@ abstract class ThreadBase
     }
 
     /**
+     * Check if current environment is on the child context or not
      * @return boolean
      */
     public function isExternal()

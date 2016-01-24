@@ -11,17 +11,35 @@ namespace RogerWaters\ReactThreads\Protocol;
 
 class BinaryBuffer
 {
+    /**
+     * @var string[]
+     */
     protected $messages = array();
 
+    /**
+     * @var string
+     */
     protected $bufferData = "";
+    /**
+     * @var bool
+     */
     protected $headerReceived = false;
+    /**
+     * @var int
+     */
     protected $waitingFor = 0;
 
-
+    /**
+     * BinaryBuffer constructor.
+     */
     public function __construct()
     {
     }
 
+    /**
+     * Send data to the internal buffer and starts the parser
+     * @param string $data
+     */
     public function pushData($data)
     {
         $this->bufferData .= $data;
@@ -31,11 +49,19 @@ class BinaryBuffer
         }
     }
 
+    /**
+     * Check if there are unprocessed messages
+     * @return bool
+     */
     public function hasMessages()
     {
         return count($this->messages) > 0;
     }
 
+    /**
+     * Entry point for parsing messages
+     * @return bool
+     */
     protected function parseBuffer()
     {
         if($this->headerReceived === false)
@@ -48,6 +74,11 @@ class BinaryBuffer
         }
     }
 
+    /**
+     * Try to receive header from buffer
+     * on success the next operation is receiveBody
+     * @return bool
+     */
     protected function receiveHeader()
     {
         if(strlen($this->bufferData) > 8)
@@ -61,6 +92,11 @@ class BinaryBuffer
         return false;
     }
 
+    /**
+     * Try to read the number of bytes given from header into message
+     * On success the next operation is receiveHeader
+     * @return bool
+     */
     protected function receiveBody()
     {
         if(strlen($this->bufferData) >= $this->waitingFor)
@@ -73,6 +109,10 @@ class BinaryBuffer
         return false;
     }
 
+    /**
+     * Get the messages from buffer and reset the message data internal
+     * @return string[]
+     */
     public function getMessages()
     {
         $messages = $this->messages;
@@ -80,6 +120,11 @@ class BinaryBuffer
         return $messages;
     }
 
+    /**
+     * Encode the message with header and body to directly write to any socket
+     * @param string $message
+     * @return string
+     */
     public static function encodeMessage($message)
     {
         $waitingData = strlen($message);

@@ -32,7 +32,7 @@ class ThreadPool
     private $connections = array();
 
     /**
-     * ThreadPool constructor.
+     * Initialize the pool and create an endpoint + server to communicate with threads
      * @param ForkableLoopInterface $loop
      */
     public function __construct(ForkableLoopInterface $loop)
@@ -83,6 +83,12 @@ class ThreadPool
         $this->threads = new \SplObjectStorage();
     }
 
+    /**
+     * Called when a thread first registers to the pool
+     * This can be seen as a simple handshake between thread and pool
+     * @param string $id
+     * @param ThreadConnection $connection
+     */
     protected function onThreadConnected($id, ThreadConnection $connection)
     {
         foreach ($this->threads as $thread)
@@ -100,12 +106,23 @@ class ThreadPool
         }
     }
 
+    /**
+     * The endpoint created by system
+     * @return string
+     */
     public function getEndpoint()
     {
         return $this->endpoint;
     }
 
-    public function registerThread(ClientThread $thread, $messageCallback)
+    /**
+     * Called by the thread after created against this pool
+     * This function should not be called anywhere else
+     * @internal
+     * @param ClientThread $thread
+     * @param callable $messageCallback
+     */
+    public function registerThread(ClientThread $thread, callable $messageCallback)
     {
         if($this->endpoint !== $thread->getEndpoint())
         {
@@ -137,6 +154,8 @@ class ThreadPool
     }
 
     /**
+     * Checks if the thread is connected. Sometimes it can take some seconds
+     * for the thread to connect. Also its possible that the thread stopped working
      * @param ClientThread $thread
      * @return bool
      */

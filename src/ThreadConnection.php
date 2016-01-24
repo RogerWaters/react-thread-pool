@@ -51,6 +51,13 @@ class ThreadConnection
      */
     private $dataBuffer = '';
 
+    /**
+     * Wrapper around the stream.
+     * Provides async and non async write access required for threads
+     * @param ForkableLoopInterface $loop
+     * @param resource $connection
+     * @param bool $writeAsync
+     */
     public function __construct(ForkableLoopInterface $loop, $connection, $writeAsync = false)
     {
         $this->loop = $loop;
@@ -90,6 +97,11 @@ class ThreadConnection
         $this->writeAsync = $writeAsync;
     }
 
+    /**
+     * Encode the data given into binary message.
+     * The message is send to the endpoint
+     * @param array|mixed $data
+     */
     public function write($data)
     {
         $this->dataBuffer .= $this->buffer->encodeMessage(serialize($data));
@@ -120,6 +132,9 @@ class ThreadConnection
         }
     }
 
+    /**
+     * Closes any underlying stream and removes events
+     */
     public function close()
     {
         if($this->connection !== null)
@@ -130,12 +145,17 @@ class ThreadConnection
         $this->connection = null;
     }
 
+    /**
+     * The id of the corresponding thread is stored here
+     * @param string $id
+     */
     public function setId($id)
     {
         $this->id = $id;
     }
 
     /**
+     * Get the id of the corresponding thread
      * @return string
      */
     public function getId()

@@ -6,7 +6,7 @@
  * Time: 08:23
  * original by react/event-loop
  * copied until some changes are applied to the react project
- * TODO: Create ticket after the first prototype works
+ * TODO: https://github.com/reactphp/event-loop/issues/41
  */
 
 namespace RogerWaters\ReactThreads\EventLoop;

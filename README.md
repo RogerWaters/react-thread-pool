@@ -75,7 +75,7 @@ See /examples folder
 - Documentation
 - Tests
 - More examples
-- Ticket on react/event-loop how to consolidate the EventLoop Interfaces
-- Refactor code for better readability
+- https://github.com/reactphp/event-loop/issues/41
+- Stability / Error handling
 
 If you have any issues or feature request, feel free to create an ticket

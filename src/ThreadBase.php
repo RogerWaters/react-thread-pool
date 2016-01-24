@@ -31,7 +31,7 @@ abstract class ThreadBase
      */
     private $childPid = null;
 
-    protected $isExternal = false;
+    private $isExternal = false;
 
     public function __construct(ForkableLoopInterface $loop)
     {
@@ -115,7 +115,7 @@ abstract class ThreadBase
 
     public function Kill()
     {
-        if($this->isExternal)
+        if($this->isExternal())
         {
             //stop process
             exit();
@@ -128,5 +128,13 @@ abstract class ThreadBase
             }
             //ignore if thread is not running
         }
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isExternal()
+    {
+        return $this->isExternal;
     }
 }

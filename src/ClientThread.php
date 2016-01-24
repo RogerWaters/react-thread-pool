@@ -63,7 +63,7 @@ class ClientThread extends ThreadBase
 
     protected function CallOnParent($action,array $parameters = array())
     {
-        if($this->isExternal)
+        if($this->isExternal())
         {
             $this->client->Write($this->Encode($action,$parameters));
         }
@@ -75,7 +75,7 @@ class ClientThread extends ThreadBase
 
     protected function CallOnChild($action,array $parameters = array())
     {
-        if($this->isExternal)
+        if($this->isExternal())
         {
             throw new \RuntimeException("Calling ClientThread::CallOnChild from Child context. Did you mean ClientThread::CallOnParent?");
         }
@@ -116,7 +116,7 @@ class ClientThread extends ThreadBase
 
     public function Stop()
     {
-        if($this->isExternal)
+        if($this->isExternal())
         {
             //close connection
             $this->client->close();

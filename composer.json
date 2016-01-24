@@ -5,5 +5,11 @@
   "license": "MIT",
   "require": {
     "cboden/ratchet": "dev-master"
+  },
+  "autoload":
+  {
+    "psr-4": {
+      "RogerWaters\\ReactThreads\\": "src"
+    }
   }
 }

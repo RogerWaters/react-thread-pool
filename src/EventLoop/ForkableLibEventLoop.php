@@ -9,14 +9,13 @@
  * TODO: Create ticket after the first prototype works
  */
 
-namespace EventLoop;
+namespace RogerWaters\ReactThreads\EventLoop;
 
 
 use React\EventLoop\Tick\FutureTickQueue;
 use React\EventLoop\Tick\NextTickQueue;
 use React\EventLoop\Timer\Timer;
 use React\EventLoop\Timer\TimerInterface;
-use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use SplObjectStorage;
 
 class ForkableLibEventLoop implements ForkableLoopInterface
@@ -26,9 +25,9 @@ class ForkableLibEventLoop implements ForkableLoopInterface
     private $eventBase;
     private $nextTickQueue;
     private $futureTickQueue;
-    private $timerCallback;
+    private $timerCallback = null;
     private $timerEvents;
-    private $streamCallback;
+    private $streamCallback = null;
     private $streamEvents = [];
     private $streamFlags = [];
     private $readListeners = [];
@@ -41,9 +40,14 @@ class ForkableLibEventLoop implements ForkableLoopInterface
         $this->nextTickQueue = new NextTickQueue($this);
         $this->futureTickQueue = new FutureTickQueue($this);
         $this->timerEvents = new SplObjectStorage();
-
-        $this->createTimerCallback();
-        $this->createStreamCallback();
+        if($this->timerCallback === null)
+        {
+            $this->createTimerCallback();
+        }
+        if($this->timerCallback === null)
+        {
+            $this->createStreamCallback();
+        }
     }
 
     /**
@@ -359,8 +363,9 @@ class ForkableLibEventLoop implements ForkableLoopInterface
         unset($this->eventBase);
         unset($this->nextTickQueue);
         unset($this->futureTickQueue);
-        unset($this->timerCallback);
-        unset($this->streamCallback);
+        //bugfix lambda function destructed while executing -.-
+        //unset($this->timerCallback);
+        //unset($this->streamCallback);
         unset($this->timerEvents);
         unset($this->running);
         $this->streamEvents = array();

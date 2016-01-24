@@ -9,6 +9,7 @@
 namespace RogerWaters\ReactThreads;
 
 use Evenement\EventEmitterTrait;
+use React\EventLoop\Timer\TimerInterface;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 
 class ThreadBase
@@ -18,20 +19,26 @@ class ThreadBase
     /**
      * @var ForkableLoopInterface
      */
-    protected $loop;
+    private $loop;
 
     /**
      * @var bool
      */
-    protected $running = false;
+    private $running = false;
 
     /**
      * @var int|null
      */
-    protected $childPid = null;
+    private $childPid = null;
+
+    /**
+     * @var \SplQueue
+     */
+    protected $workList;
 
     public function __construct(ForkableLoopInterface $loop)
     {
+        $this->workList = new \SplQueue();
         $this->loop = $loop;
     }
 
@@ -39,6 +46,7 @@ class ThreadBase
     {
         if($this->running === false)
         {
+            $this->emit('starting',array($this));
             $this->childPid = $this->fork();
             $this->running = true;
         }
@@ -54,7 +62,14 @@ class ThreadBase
         elseif($pid === 0)
         {
             //child proc
-            $this->InitializeExternal();
+            try
+            {
+                $this->InitializeExternal();
+            }
+            catch (\Exception $e)
+            {
+                $this->emit('child_error',array($this,$e));
+            }
             exit();
         }
         else
@@ -67,47 +82,63 @@ class ThreadBase
     protected function InitializeExternal()
     {
         $this->loop = $this->loop->afterForkChild();
-        $this->ConstructExternal();
+        /** @var ThreadWork $work */
+        while(($work = $this->workList->dequeue()) instanceof ThreadWork)
+        {
+            $work->DoWork($this,$this->loop);
+        }
     }
 
     protected function InitializeInternal()
     {
         $this->loop->afterForkParent();
-        $this->loop->addPeriodicTimer(5,function()
+        $this->loop->addPeriodicTimer(5,function(TimerInterface $timer)
         {
             $donePid = pcntl_waitpid($this->childPid, $status, WNOHANG | WUNTRACED);
             switch($donePid)
             {
                 case $this->childPid: //donePid is child pid
                     //child done
+                    echo "Done".PHP_EOL;
                     $this->running = false;
-                    $this->emit('stopped',array($this->childPid,$status));
+                    $timer->cancel();
+                    $this->emit('stopped',array($this->childPid,$status,$this));
                     break;
                 case 0: //donePid is empty
                     //everything fine.
                     //process still running
+                    echo "Running".PHP_EOL;
                     break;
                 case -1://donePid is unknown
                 default:
+                    echo "Error".PHP_EOL;
                     $this->emit('error',array(new \RuntimeException("$this->childPid PID returned unexpected status. Maybe its not a child of this.")));
                     break;
             }
         });
+        //free worklist internal as works will be performed external
+        $this->workList = new \SplQueue();
     }
 
-    protected function ConstructExternal()
+    /**
+     * @return bool
+     */
+    public function IsRunning()
     {
-        $counter = 0;
-        $this->loop->addPeriodicTimer(5,function() use (&$counter)
-        {
-            echo $counter++." Message from: ".posix_getpid().PHP_EOL;
-            if($counter >= 10)
-            {
-                echo "This was the last message from: ".posix_getpid().' stopping now'.PHP_EOL;
-                $this->loop->stop();
-            }
-        });
+        return $this->running;
+    }
 
-        $this->loop->run();
+    /**
+     * @param ThreadWork $work
+     * @return $this
+     */
+    public function EnQueueWork(ThreadWork $work)
+    {
+        if($this->IsRunning())
+        {
+            throw new \InvalidArgumentException("Cannot attach work while thread is running. Ether wait for thread to complete enqueue and start again or create an new thread.");
+        }
+        $this->workList->enqueue($work);
+        return $this;
     }
 }

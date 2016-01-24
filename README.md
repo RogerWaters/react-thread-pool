@@ -1,20 +1,20 @@
 # react-thread-pool
 
-This is an multiprocessing library based on react/event-loop.
-Status: alpha
-Tests: none
+This is an multiprocessing library based on reactphp/event-loop.<br />
+Status: alpha<br />
+Tests: none<br />
 
-## Requirements
+### Requirements
 - Linux/Unix platform
 - PHP >= 5.4
-- react/event-loop
-- evenement/evenement
-- [optional] Libevent (pect/libevent)
+- <a href="https://github.com/reactphp/event-loop" target="_blank">reactphp/event-loop</a>
+- <a href="https://github.com/igorw/evenement" target="_blank">igorw/evenement</a>
+- [optional] Libevent (pect/libevent-0.1.0)
 
-## Examples
+### Examples
 Examples are within the example folder.
 
-## TODO:
+### TODO:
 - Documentation
 - Tests
 - More examples

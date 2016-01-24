@@ -19,7 +19,7 @@ $loop = new ForkableStreamSelectEventLoop();
 ```
 <br/>
 <br/>
-Creating an default thread to do heavy work outside your parent process
+Creating an default thread to perform heavy work outside your parent process
 ```php
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\ThreadBase;
@@ -36,6 +36,26 @@ class ExampleThread extends ThreadBase
 ```
 <br/>
 
+```php
+//create thread
+$thread = new ExampleThread($loop);
+//start thread and do external logic
+$thread->start();
+
+//wait for the thread to complete
+$thread->on('stopped',function() use ($loop)
+{
+    //thread is done
+    //stop the parent process
+    $loop->stop();
+});
+
+//you can do any other operations here without affecting the thread
+
+//run the loop to wait for completion
+$loop->run();
+```
+
 ## Requirements
 - Linux/Unix platform
 - PHP >= 5.4
@@ -44,7 +64,7 @@ class ExampleThread extends ThreadBase
 - [optional] Libevent (pect/libevent-0.1.0)
 
 ## Examples
-Examples are within the example folder.
+See /examples folder
 
 ## TODO:
 - Documentation

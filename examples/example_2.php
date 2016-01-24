@@ -4,7 +4,7 @@
  */
 
 use React\EventLoop\Timer\TimerInterface;
-use RogerWaters\ReactThreads\EventLoop\ForkableLibEventLoop;
+use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\ThreadBase;
 
@@ -28,7 +28,7 @@ class EchoThread extends ThreadBase
     }
 }
 
-$loop = new ForkableLibEventLoop();
+$loop = ForkableFactory::create();
 $thread = new EchoThread($loop);
 
 //Let the thread work for some seconds then kill and start again

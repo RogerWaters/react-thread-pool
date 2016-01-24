@@ -16,15 +16,10 @@ Tests: none<br />
 ## Basic Usage
 
 Create an EventLoop:<br />
-If you have pect/libevent installed:
 ```php
-$loop = new ForkableLibEventLoop();
+$loop = ForkableFactory::create();
 ```
-<br />
-Else use:
-```php
-$loop = new ForkableStreamSelectEventLoop();
-```
+*The loop is the same as reactphp/event-loop so you can also use this for your server
 <br/>
 Creating a default thread to perform heavy work outside your parent process:
 ```php

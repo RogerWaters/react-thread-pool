@@ -5,8 +5,7 @@
 
 use React\EventLoop\Timer\TimerInterface;
 use RogerWaters\ReactThreads\ClientThread;
-use RogerWaters\ReactThreads\EventLoop\ForkableLibEventLoop;
-use RogerWaters\ReactThreads\EventLoop\ForkableStreamSelectEventLoop;
+use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
 use RogerWaters\ReactThreads\ThreadPool;
 
 include('./../vendor/autoload.php');
@@ -40,8 +39,7 @@ class DownloaderThread extends ClientThread
     }
 }
 
-//$loop = new ForkableLibEventLoop();
-$loop = new ForkableStreamSelectEventLoop();
+$loop = ForkableFactory::create();
 
 //we require am ThreadPool here
 //the pool creates an endpoint to communicate with all threads attached to it

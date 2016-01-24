@@ -15,6 +15,7 @@
     }
   },
   "suggest": {
-    "ext-libevent": ">=0.1.0"
+    "ext-libevent": ">=0.1.0",
+    "ext-event": "~1.0"
   }
 }

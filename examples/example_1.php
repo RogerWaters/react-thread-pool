@@ -4,7 +4,7 @@
  */
 
 use React\EventLoop\Timer\TimerInterface;
-use RogerWaters\ReactThreads\EventLoop\ForkableLibEventLoop;
+use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\ThreadBase;
 
@@ -29,7 +29,7 @@ class EchoThread extends ThreadBase
 }
 
 //Extends the default loop from React\EventLoop
-$loop = new ForkableLibEventLoop();
+$loop = ForkableFactory::create();
 
 //This is the thread instance. You can have as many instances as you like
 $thread = new EchoThread($loop);

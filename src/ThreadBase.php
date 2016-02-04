@@ -8,33 +8,16 @@
 
 namespace RogerWaters\ReactThreads;
 
-use Evenement\EventEmitterTrait;
-use React\EventLoop\Timer\TimerInterface;
+use React\EventLoop\LoopInterface;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
+use RogerWaters\ReactThreads\Protocol\MessageFormat;
 
-abstract class ThreadBase
+abstract class ThreadBase implements IThreadComponent
 {
-    use EventEmitterTrait;
-
     /**
-     * @var ForkableLoopInterface
+     * @var ThreadCommunicator
      */
-    private $loop;
-
-    /**
-     * @var bool
-     */
-    private $running = false;
-
-    /**
-     * @var int|null
-     */
-    private $childPid = null;
-
-    /**
-     * @var bool
-     */
-    private $isExternal = false;
+    private $communicator;
 
     /**
      * ThreadBase constructor.
@@ -42,7 +25,7 @@ abstract class ThreadBase
      */
     public function __construct(ForkableLoopInterface $loop)
     {
-        $this->loop = $loop;
+        $this->communicator = new ThreadCommunicator($loop, $this);
     }
 
     /**
@@ -50,83 +33,27 @@ abstract class ThreadBase
      */
     public function start()
     {
-        if($this->running === false)
-        {
-            $this->emit('starting',array($this));
-            $this->childPid = $this->fork();
-            $this->running = true;
+        if ($this->communicator->isIsRunning() === false) {
+            $this->communicator->fork();
         }
     }
 
     /**
-     * will split the current process into to separated copies
-     * @return int
+     * Each message received call this function
+     * @param ThreadCommunicator $communicator
+     * @param mixed $messagePayload
+     * @return mixed
      */
-    protected function fork()
+    public function handleMessage(ThreadCommunicator $communicator, $messagePayload)
     {
-        $pid = pcntl_fork();
-        if($pid <= -1 )
-        {
-            throw new \RuntimeException("Unable to fork child: ".pcntl_strerror(pcntl_get_last_error()));
-        }
-        elseif($pid === 0)
-        {
-            //child proc
-            try
-            {
-                $this->isExternal = true;
-                $this->loop = $this->loop->afterForkChild();
-                $this->initializeExternal($this->loop);
-            }
-            catch (\Exception $e)
-            {
-                $this->emit('child_error',array($this,$e));
-            }
-            exit();
-        }
-        else
-        {
-            $this->initializeInternal();
-            return $pid;
-        }
-    }
+        $action = $messagePayload['action'];
+        $parameters = $messagePayload['parameters'];
 
-    /**
-     * Implement your entire thread logic starting at this point
-     * Function will be called with an working stable loop
-     * @param ForkableLoopInterface $loop
-     */
-    protected abstract function initializeExternal(ForkableLoopInterface $loop);
+        if (method_exists($this, $action)) {
+            return call_user_func_array(array($this, $action), $parameters);
+        }
 
-    /**
-     * Logic required to observe the process
-     * Make sure no zombies on the floor
-     * Checks if the process completed and requests the status code
-     */
-    protected function initializeInternal()
-    {
-        $this->loop->afterForkParent();
-        $this->loop->addPeriodicTimer(5,function(TimerInterface $timer)
-        {
-            $donePid = pcntl_waitpid($this->childPid, $status, WNOHANG | WUNTRACED);
-            switch($donePid)
-            {
-                case $this->childPid: //donePid is child pid
-                    //child done
-                    $this->running = false;
-                    $timer->cancel();
-                    $this->emit('stopped',array($this->childPid,$status,$this));
-                    break;
-                case 0: //donePid is empty
-                    //everything fine.
-                    //process still running
-                    break;
-                case -1://donePid is unknown
-                default:
-                    $this->emit('error',array(new \RuntimeException("$this->childPid PID returned unexpected status. Maybe its not a child of this.")));
-                    break;
-            }
-        });
+        return false;
     }
 
     /**
@@ -135,7 +62,7 @@ abstract class ThreadBase
      */
     public function isRunning()
     {
-        return $this->running;
+        return $this->communicator->isIsRunning();
     }
 
     /**
@@ -145,17 +72,12 @@ abstract class ThreadBase
      */
     public function kill()
     {
-        if($this->isExternal())
+        if ($this->isExternal())
         {
             //stop process
             exit();
-        }
-        else
-        {
-            if($this->running)
-            {
-                posix_kill($this->childPid,SIGTERM);
-            }
+        } else {
+            $this->communicator->kill();
             //ignore if thread is not running
         }
     }
@@ -166,6 +88,130 @@ abstract class ThreadBase
      */
     public function isExternal()
     {
-        return $this->isExternal;
+        return $this->communicator->isIsExternal();
+    }
+
+
+    /**
+     * Stop the external process after all current operations completed
+     */
+    public function stop()
+    {
+        if ($this->isExternal())
+        {
+            $this->communicator->getLoop()->stop();
+        }
+        else
+        {
+            $this->asyncCallOnChild(__FUNCTION__, func_get_args());
+        }
+    }
+
+    /**
+     * Encode and send the message to the parent
+     * will call method $action on this instance in the parent context
+     * @param string $action
+     * @param array $parameters
+     * @return mixed
+     */
+    protected function callOnParent($action, array $parameters = array())
+    {
+        if ($this->isExternal()) {
+            return $this->communicator->SendMessageSync($this->encode($action, $parameters));
+        } else {
+            throw new \RuntimeException("Calling ClientThread::CallOnParent from Parent context. Did you mean ClientThread::CallOnChild?");
+        }
+    }
+
+    /**
+     * Asynchronous variation of @see ThreadBase::callOnParent
+     * this method returns instantly
+     * You can ether use the @see MessageFormat::isIsResolved to check the result
+     * Or you can provide a callback executed if the message gets resolved
+     * If you don't matter on what the call returns just throw away the result
+     * @param string $action
+     * @param array $parameters
+     * @param callable $onResult
+     * @return MessageFormat
+     */
+    protected function asyncCallOnParent($action, array $parameters = array(), callable $onResult = null)
+    {
+        if ($this->isExternal())
+        {
+            return $this->communicator->SendMessageAsync($this->encode($action, $parameters), $onResult);
+        } else {
+            throw new \RuntimeException("Calling ClientThread::CallOnParent from Parent context. Did you mean ClientThread::CallOnChild?");
+        }
+    }
+
+    /**
+     * Encode and send the message to the external process
+     * will call method $action on this instance in the child context
+     * @param string $action
+     * @param array $parameters
+     * @return mixed
+     */
+    protected function callOnChild($action, array $parameters = array())
+    {
+        if ($this->isExternal()) {
+            throw new \RuntimeException("Calling ClientThread::CallOnChild from Child context. Did you mean ClientThread::CallOnParent?");
+        } else {
+            return $this->communicator->SendMessageSync($this->encode($action, $parameters));
+        }
+    }
+
+    /**
+     * Asynchronous variation of @see ThreadBase::callOnChild
+     * this method returns instantly
+     * You can ether use the @see MessageFormat::isIsResolved to check the result
+     * Or you can provide a callback executed if the message gets resolved
+     * If you don't matter on what the call returns just throw away the result
+     * @param string $action
+     * @param array $parameters
+     * @param callable $onResult
+     * @return MessageFormat
+     */
+    protected function asyncCallOnChild($action, array $parameters = array(), callable $onResult = null)
+    {
+        if($this->isExternal())
+        {
+            throw new \RuntimeException("Calling ClientThread::CallOnChild from Child context. Did you mean ClientThread::CallOnParent?");
+        }
+        else
+        {
+            return $this->communicator->SendMessageAsync($this->encode($action, $parameters), $onResult);
+        }
+    }
+
+    /**
+     * Format message to send over connection
+     * @param string $action
+     * @param array $parameters
+     * @return array
+     */
+    protected function encode($action, array $parameters = array())
+    {
+        return array('action' => $action, 'parameters' => $parameters);
+    }
+
+    /**
+     * @return float
+     */
+    public function getSecondsSinceLastMessage()
+    {
+        return $this->communicator->getSecondsSinceLastMessage();
+    }
+
+    /**
+     * @param ForkableLoopInterface $loop
+     * @param $minimumNumberOfThreads
+     * @param int $maximumNumberOfThreads
+     * @param int $lazyThreadTimeoutSec
+     * @return self|ThreadPool
+     */
+    public static function CreatePooled(ForkableLoopInterface $loop, $minimumNumberOfThreads, $maximumNumberOfThreads = 32, $lazyThreadTimeoutSec = 60)
+    {
+        $pool = new ThreadPool($loop, get_called_class(), $minimumNumberOfThreads, $maximumNumberOfThreads, $lazyThreadTimeoutSec);
+        return $pool;
     }
 }

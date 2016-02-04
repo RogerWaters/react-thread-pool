@@ -17,10 +17,6 @@ use RogerWaters\ReactThreads\Protocol\BinaryBuffer;
 class ThreadConnection
 {
     use EventEmitterTrait;
-    /**
-     * @var string
-     */
-    public $id;
 
     /**
      * @var BinaryBuffer
@@ -41,10 +37,6 @@ class ThreadConnection
      * @var bool
      */
     private $writeEvent = false;
-    /**
-     * @var bool
-     */
-    private $writeAsync;
 
     /**
      * @var string
@@ -56,45 +48,21 @@ class ThreadConnection
      * Provides async and non async write access required for threads
      * @param ForkableLoopInterface $loop
      * @param resource $connection
-     * @param bool $writeAsync
      */
-    public function __construct(ForkableLoopInterface $loop, $connection, $writeAsync = false)
+    public function __construct(ForkableLoopInterface $loop, $connection)
     {
         $this->loop = $loop;
         $this->connection = $connection;
         $this->buffer = new BinaryBuffer();
 
-        if($writeAsync)
+        $this->ThrowOnConnectionInvalid();
+
+        if (function_exists('stream_set_read_buffer'))
         {
-            //non blocking only for async
-            stream_set_blocking($connection,0);
+            stream_set_read_buffer($this->connection, 0);
         }
 
-        if (function_exists('stream_set_read_buffer')) {
-            stream_set_read_buffer($connection, 0);
-        }
-
-        $loop->addReadStream($connection,function($conn, ForkableLoopInterface $loop)
-        {
-            $message = stream_socket_recvfrom($conn, 1024, 0, $peer);
-            //$message = fread($conn,1024);
-            if($message !== '' && $message !== false)
-            {
-                $this->buffer->pushData($message);
-                foreach ($this->buffer->getMessages() as $messageData)
-                {
-                    $messageData = unserialize($messageData);
-                    $this->emit('message',array($this,$messageData));
-                }
-            }
-            else
-            {
-                fclose($conn);
-                $loop->removeReadStream($conn);
-                $this->emit('close',array($this));
-            }
-        });
-        $this->writeAsync = $writeAsync;
+        $this->attachReadStream();
     }
 
     /**
@@ -102,14 +70,14 @@ class ThreadConnection
      * The message is send to the endpoint
      * @param array|mixed $data
      */
-    public function write($data)
+    public function writeAsync($data)
     {
         $this->dataBuffer .= $this->buffer->encodeMessage(serialize($data));
-        if($this->writeAsync)
+        if ($this->writeEvent === false)
         {
-            if($this->writeEvent === false)
+            $this->loop->addWriteStream($this->connection, function ($stream, LoopInterface $loop)
             {
-                $this->loop->addWriteStream($this->connection,function($stream,LoopInterface $loop)
+                if (strlen($this->dataBuffer) > 0)
                 {
                     $dataWritten = fwrite($stream,$this->dataBuffer);
                     $this->dataBuffer = substr($this->dataBuffer,$dataWritten);
@@ -118,18 +86,38 @@ class ThreadConnection
                         $loop->removeWriteStream($stream);
                         $this->writeEvent = false;
                     }
-                });
-                $this->writeEvent = true;
-            }
+                }
+            });
+            $this->writeEvent = true;
         }
-        else
+    }
+
+    public function writeSync($data)
+    {
+        if ($this->writeEvent)
         {
-            while(strlen($this->dataBuffer) > 0 && feof($this->connection) === false)
-            {
-                $dataWritten = stream_socket_sendto($this->connection,$this->dataBuffer);
-                $this->dataBuffer = substr($this->dataBuffer,$dataWritten);
-            }
+            $this->loop->removeWriteStream($this->connection);
+            $this->writeEvent = false;
         }
+
+        $this->dataBuffer .= $this->buffer->encodeMessage(serialize($data));
+
+        while (strlen($this->dataBuffer) > 0) {
+            $this->ThrowOnConnectionInvalid();
+            $dataWritten = stream_socket_sendto($this->connection, $this->dataBuffer);
+            $this->dataBuffer = substr($this->dataBuffer, $dataWritten);
+        }
+    }
+
+    /**
+     * Reads a singe message from the remote stream
+     */
+    public function readSync()
+    {
+        $this->ThrowOnConnectionInvalid();
+        $this->loop->removeReadStream($this->connection);
+        $this->readToBuffer();
+        $this->attachReadStream();
     }
 
     /**
@@ -139,27 +127,50 @@ class ThreadConnection
     {
         if($this->connection !== null)
         {
+            if ($this->writeEvent) {
+                $this->loop->removeWriteStream($this->connection);
+            }
+            $this->loop->removeReadStream($this->connection);
             fclose($this->connection);
-            $this->emit('close');
+            $this->emit('close', array($this));
         }
         $this->connection = null;
     }
 
     /**
-     * The id of the corresponding thread is stored here
-     * @param string $id
+     * setup the readStream event
      */
-    public function setId($id)
+    protected function attachReadStream()
     {
-        $this->id = $id;
+        $this->ThrowOnConnectionInvalid();
+        $this->loop->addReadStream($this->connection, function () {
+            $this->readToBuffer();
+        });
     }
 
     /**
-     * Get the id of the corresponding thread
-     * @return string
+     * reads a block of data to the buffer
      */
-    public function getId()
+    protected function readToBuffer()
     {
-        return $this->id;
+        $this->ThrowOnConnectionInvalid();
+        $message = stream_socket_recvfrom($this->connection, 1024, 0, $peer);
+        //$message = fread($conn,1024);
+        if ($message !== '' && $message !== false) {
+            $this->buffer->pushData($message);
+            foreach ($this->buffer->getMessages() as $messageData) {
+                $messageData = unserialize($messageData);
+                $this->emit('message', array($this, $messageData));
+            }
+        } else {
+            $this->close();
+        }
+    }
+
+    protected function ThrowOnConnectionInvalid()
+    {
+        if (is_resource($this->connection) === false) {
+            throw new \InvalidArgumentException("Connection ist invalid or closed");
+        }
     }
 }

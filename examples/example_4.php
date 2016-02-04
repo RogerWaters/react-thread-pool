@@ -3,9 +3,11 @@
  * Example shows how to receive events from threads
  */
 
-use RogerWaters\ReactThreads\ClientThread;
+use Evenement\EventEmitterTrait;
 use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
+use RogerWaters\ReactThreads\ThreadBase;
+use RogerWaters\ReactThreads\ThreadCommunicator;
 use RogerWaters\ReactThreads\ThreadPool;
 
 include('./../vendor/autoload.php');
@@ -14,8 +16,13 @@ include('./../vendor/autoload.php');
  * This class allows you to observe any stream available for read events
  * Class DownloaderThread
  */
-class StreamObserverThread extends ClientThread
+class StreamObserverThread extends ThreadBase
 {
+    /**
+     * Include EventEmitter to send custom events
+     */
+    use EventEmitterTrait;
+
     /**
      * @var resource
      */
@@ -25,40 +32,37 @@ class StreamObserverThread extends ClientThread
      * Passing any type of variable to the thread constructor
      * It will be copied to the child process
      * @param ForkableLoopInterface $loop
-     * @param ThreadPool $pool
      * @param resource $stream
      */
-    public function __construct(ForkableLoopInterface $loop, ThreadPool $pool, $stream)
+    public function __construct(ForkableLoopInterface $loop, $stream)
     {
         if(is_resource($stream) === false)
         {
             throw new InvalidArgumentException("Stream has to be a valid resource");
         }
-        parent::__construct($loop, $pool);
+        parent::__construct($loop);
         $this->stream = $stream;
     }
 
-    protected function initializeExternal(ForkableLoopInterface $loop)
+    /**
+     * Initialize your logic and do whatever you want external
+     * @param ThreadCommunicator $communicator
+     */
+    public function InitializeExternal(ThreadCommunicator $communicator)
     {
-        //stream_set_blocking($this->stream,0);
-        $loop->addReadStream($this->stream,function($stream)
+        $communicator->getLoop()->addReadStream($this->stream, function ($stream)
         {
-            $message = fread($stream,1024);
-            //stdin takes the \n in the message so trim it
-            $message = strtolower(rtrim($message));
+            $message = fgets($stream, 1024);
             //calling the EventEmiiter::emit() function on parent
             $this->callOnParent('emit', array('stream_message', array($message)));
         });
-        //don't forget the parent logic
-        parent::initializeExternal($loop);
     }
 }
 
 $loop = ForkableFactory::create();
-$pool = new ThreadPool($loop);
 
 //create the thread instance and pass an stream as last parameter
-$thread = new StreamObserverThread($loop,$pool,STDIN);
+$thread = new StreamObserverThread($loop, STDIN);
 
 //register on the custom event
 //do not use reserved events: message, starting, stopped, error

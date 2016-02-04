@@ -78,4 +78,4 @@ See /examples folder
 - https://github.com/reactphp/event-loop/issues/41
 - Stability / Error handling
 
-If you have any issues or feature request, feel free to create an ticket
+If you have any issues or feature request, feel free to create a ticket

@@ -5,8 +5,8 @@
 
 use React\EventLoop\Timer\TimerInterface;
 use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
-use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\ThreadBase;
+use RogerWaters\ReactThreads\ThreadCommunicator;
 
 include('./../vendor/autoload.php');
 
@@ -16,7 +16,11 @@ include('./../vendor/autoload.php');
  */
 class EchoThread extends ThreadBase
 {
-    protected function initializeExternal(ForkableLoopInterface $loop)
+    /**
+     * Initialize your logic and do whatever you want external
+     * @param ThreadCommunicator $communicator
+     */
+    public function InitializeExternal(ThreadCommunicator $communicator)
     {
         //your complicated work goes here
         for($i = 0; $i < 10; $i++)
@@ -24,7 +28,8 @@ class EchoThread extends ThreadBase
             echo "Doing complicated work $i / 10".PHP_EOL;
             sleep(1);
         }
-        echo "After complete the Thread is closed automatically".PHP_EOL;
+        echo "After complete you can close the thread" . PHP_EOL;
+        $this->kill();
     }
 }
 

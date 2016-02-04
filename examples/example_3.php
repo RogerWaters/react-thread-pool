@@ -6,6 +6,8 @@
 use React\EventLoop\Timer\TimerInterface;
 use RogerWaters\ReactThreads\ClientThread;
 use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
+use RogerWaters\ReactThreads\Protocol\MessageFormat;
+use RogerWaters\ReactThreads\ThreadCommunicator;
 use RogerWaters\ReactThreads\ThreadPool;
 
 include('./../vendor/autoload.php');
@@ -14,13 +16,15 @@ include('./../vendor/autoload.php');
  * This class allows you to download multiple pages in an separate process
  * Class DownloaderThread
  */
-class DownloaderThread extends ClientThread
+class DownloaderThread extends \RogerWaters\ReactThreads\ThreadBase
 {
     /**
-     * Functin for downloading urls external
+     * Function for downloading urls external
      * @param string $url
+     * @param callable $onComplete
+     * @return MessageFormat|string
      */
-    public function download($url)
+    public function download($url, callable $onComplete = null)
     {
         //first check if the function is called external
         if($this->isExternal())
@@ -29,26 +33,36 @@ class DownloaderThread extends ClientThread
             //hold the process to simulate more to do ;-)
             sleep(3);
             echo "Downloaded: ".strlen($data).' bytes from url: '.$url.PHP_EOL;
+            //return the data
+            //parent thread can handle this if needed
+            return $data;
         }
         else
         {
             //we are in the parent context
             //just redirect to the thread
-            $this->callOnChild(__FUNCTION__, func_get_args());
+            //we use async as we dont want to wait for the result
+            //return the handle allow the caller to check result
+            return $this->asyncCallOnChild(__FUNCTION__, array($url), $onComplete);
         }
+    }
+
+    /**
+     * Initialize your logic and do whatever you want external
+     * @param ThreadCommunicator $communicator
+     */
+    public function InitializeExternal(ThreadCommunicator $communicator)
+    {
+        //nothing to do here as we get our messages from parent
     }
 }
 
 $loop = ForkableFactory::create();
 
-//we require am ThreadPool here
-//the pool creates an endpoint to communicate with all threads attached to it
-//you can have multiple ThreadPool instances, but its best to use only one
-$pool = new ThreadPool($loop);
 
 //create an instance of the class above
 //the thread is directly attached to the ThreadPool
-$thread = new DownloaderThread($loop,$pool);
+$thread = new DownloaderThread($loop);
 
 //lets start the thread.
 //as you maybe mention this does nothing else than creating an process
@@ -64,40 +78,22 @@ $urls = array
     'http://php.net/'
 );
 
-
-//Let the thread work for some seconds then kill and start again
-$loop->addPeriodicTimer(1,function(TimerInterface $timer) use ($thread,&$urls)
+foreach ($urls as $url)
 {
-    //take an url from the stack
-    $url = array_pop($urls);
-
-    if($url !== null)
+    //tell the thread to download the url
+    //you can provide a callback to get directly informed on complete
+    $thread->download($url, function (MessageFormat $message) use ($url)
     {
-        echo "Enqueue url $url for download".PHP_EOL;
-        //download the url external
-        //each url will take 3 seconds
-        //but we enqueue url every second;
-        $thread->download($url);
-    }
-    else
-    {
-        //all urls submitted
-        //we can tell the thread to close after completion
-        //use Stop instead of Kill wil wait for all works to complete before closing
-        $thread->stop();
-        echo "Tell Thread to stop after current works".PHP_EOL;
-        //waiting for the thread to stop
-        //this can take some tome...
-        $thread->on('stopped',function() use ($timer)
+        //check if the message is resolved.
+        //this is for future compatibility to provide progress
+        if ($message->isIsResolved())
         {
-            echo "Thread is done.. Stop parent loop".PHP_EOL;
-            //stop the parent process
-            $timer->getLoop()->stop();
-        });
-
-        //cancel the timer as we have no urls to download left
-        $timer->cancel();
-    }
-});
+            //you can save the result to disc
+            //file_put_contents('./result.html',$message->GetResult());
+            //echo the bytes here to be comparable with echo from remote thread
+            echo "Parent got $url content with: ", strlen($message->GetResult()), ' bytes', PHP_EOL;
+        }
+    });
+}
 
 $loop->run();

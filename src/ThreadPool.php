@@ -2,6 +2,7 @@
 namespace RogerWaters\ReactThreads;
 use InvalidArgumentException;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
+use RogerWaters\ReactThreads\Protocol\MessageFormat;
 
 /**
  * Created by PhpStorm.
@@ -12,155 +13,234 @@ use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 class ThreadPool
 {
     /**
+     * @var ForkableLoopInterface
+     */
+    private $loop;
+
+    /**
      * @var string
      */
-    private $endpoint;
+    private $threadClass;
 
     /**
-     * @var \SplObjectStorage|ClientThread[]
+     * @var ThreadBase[]
      */
-    protected $threads;
+    private $threadsLazy = array();
 
     /**
-     * @var callable[]
+     * @var ThreadBase[]
      */
-    protected $callbacks = array();
+    private $threadsWorking = array();
 
     /**
-     * @var ThreadConnection[]
+     * @var int
      */
-    private $connections = array();
+    private $minimumNumberOfThreads;
 
     /**
-     * Initialize the pool and create an endpoint + server to communicate with threads
+     * @var int
+     */
+    private $maximumNumberOfThreads;
+    /**
+     * @var int
+     */
+    private $lazyThreadTimeoutSec;
+
+    /**
+     * Initialize the pool and create
      * @param ForkableLoopInterface $loop
+     * @param string $threadClass
+     * @param $minimumNumberOfThreads
+     * @param $maximumNumberOfThreads
+     * @param int $lazyThreadTimeoutSec
      */
-    public function __construct(ForkableLoopInterface $loop)
+    public function __construct(ForkableLoopInterface $loop, $threadClass, $minimumNumberOfThreads, $maximumNumberOfThreads = 32, $lazyThreadTimeoutSec = 60)
     {
-        $socket = stream_socket_server('tcp://127.0.0.1:0');
-        stream_set_blocking($socket,0);
-        $loop->addReadStream($socket,function($socket, ForkableLoopInterface $loop)
+        $this->loop = $loop;
+        if (in_array(ThreadBase::class, class_parents($threadClass)) === false)
         {
-            $conn = stream_socket_accept($socket);
-            //server will write async messages
-            $threadConnection = new ThreadConnection($loop,$conn,true);
-            $threadConnection->once('message',function(ThreadConnection $threadConnection,array $message)
-            {
-                //expected header received
-                if(isset($message['action'],$message['parameters']) && $message['action'] === '__connect')
-                {
-                    $this->onThreadConnected($message['parameters'][0], $threadConnection);
-                }
-                else
-                {
-                    //invalid header received close connection!
-                    $threadConnection->close();
-                }
-            });
-            $threadConnection->once('close',function() use ($threadConnection)
-            {
-                if ($threadConnection->getId() !== null)
-                {
-                    foreach ($this->threads as $thread)
-                    {
-                        if($thread->getId() === $thread->getId())
-                        {
-                            //make sure process going down
-                            $thread->kill();
-                            $this->threads->detach($thread);
-
-                            unset($this->connections[$threadConnection->getId()]);
-                            unset($this->callbacks[$thread->getId()]);
-                            $threadConnection->removeAllListeners('message');
-                            break;
-                        }
-                    }
-                }
-            });
-        });
-
-        $this->endpoint = 'tcp://'.stream_socket_get_name($socket,false);
-        $this->threads = new \SplObjectStorage();
-    }
-
-    /**
-     * Called when a thread first registers to the pool
-     * This can be seen as a simple handshake between thread and pool
-     * @param string $id
-     * @param ThreadConnection $connection
-     */
-    protected function onThreadConnected($id, ThreadConnection $connection)
-    {
-        foreach ($this->threads as $thread)
-        {
-            if($thread->getId() === $id)
-            {
-                $connection->setId($id);
-                $this->connections[$connection->getId()] = $connection;
-                $connection->on('message',function(ThreadConnection $connectino, $messageData) use ($id)
-                {
-                    $callback = $this->callbacks[$id];
-                    $callback($messageData['action'],$messageData['parameters']);
-                });
-            }
+            throw new InvalidArgumentException("Given thread class '$threadClass' must extend " . ThreadBase::class);
         }
+
+        $this->threadClass = $threadClass;
+        $this->setMinimumNumberOfThreads($minimumNumberOfThreads);
+        $this->setMaximumNumberOfThreads($maximumNumberOfThreads);
+        $this->setLazyThreadTimeoutSec($lazyThreadTimeoutSec);
     }
 
     /**
-     * The endpoint created by system
      * @return string
      */
-    public function getEndpoint()
+    public function getThreadClass()
     {
-        return $this->endpoint;
+        return $this->threadClass;
     }
 
     /**
-     * Called by the thread after created against this pool
-     * This function should not be called anywhere else
-     * @internal
-     * @param ClientThread $thread
-     * @param callable $messageCallback
+     * @return int
      */
-    public function registerThread(ClientThread $thread, callable $messageCallback)
+    public function getMinimumNumberOfThreads()
     {
-        if($this->endpoint !== $thread->getEndpoint())
-        {
-            throw new InvalidArgumentException("The given Thread is assigned to another ThreadPool already.");
-        }
-        if($this->threads->contains($thread))
-        {
-            throw new InvalidArgumentException("The Thread is already registered in this pool");
-        }
-        $this->threads->attach($thread);
-        $this->callbacks[$thread->getId()] = $messageCallback;
+        return $this->minimumNumberOfThreads;
     }
 
     /**
-     * @internal
-     * @param ClientThread $thread
-     * @param array $message
+     * @return int
      */
-    public function sendToClient(ClientThread $thread, array $message)
+    public function getMaximumNumberOfThreads()
     {
-        if ($this->isConnected($thread))
+        return $this->maximumNumberOfThreads;
+    }
+
+    /**
+     * @param int $minimumNumberOfThreads
+     */
+    public function setMinimumNumberOfThreads($minimumNumberOfThreads)
+    {
+        if ($minimumNumberOfThreads < 1)
         {
-            $this->connections[$thread->getId()]->write($message);
+            throw new InvalidArgumentException("minimumNumberOfThreads has to be greater than 0");
+        }
+
+        $this->minimumNumberOfThreads = $minimumNumberOfThreads;
+
+        $this->CheckThreadLimits();
+    }
+
+    /**
+     * @param int $maximumNumberOfThreads
+     */
+    public function setMaximumNumberOfThreads($maximumNumberOfThreads)
+    {
+        if ($maximumNumberOfThreads < $this->minimumNumberOfThreads)
+        {
+            throw new InvalidArgumentException("maximumNumberOfThreads has to be greater or equal than minimumNumberOfThreads");
+        }
+        $this->maximumNumberOfThreads = $maximumNumberOfThreads;
+
+        $this->CheckThreadLimits();
+    }
+
+    /**
+     * @return int
+     */
+    public function getLazyThreadTimeoutSec()
+    {
+        return $this->lazyThreadTimeoutSec;
+    }
+
+    /**
+     * @param int $lazyThreadTimeoutSec
+     */
+    public function setLazyThreadTimeoutSec($lazyThreadTimeoutSec)
+    {
+        if ($this->lazyThreadTimeoutSec < 0)
+        {
+            throw new InvalidArgumentException("lazyThreadTimeoutSec must be at least 0");
+        }
+        $this->lazyThreadTimeoutSec = $lazyThreadTimeoutSec;
+
+        $this->CheckThreadLimits();
+    }
+
+    protected function CheckThreadLimits()
+    {
+        while ($this->getNumberOfThreads() > $this->maximumNumberOfThreads && count($this->threadsLazy) > 0) {
+            /** @var ThreadBase $thread */
+            $thread = array_pop($this->threadsLazy);
+            $thread->kill();
+        }
+
+        $threadsTimedOut = $this->threadsLazy;
+
+        //remove unused threads
+        foreach ($threadsTimedOut as $id => $thread) {
+            if ($this->getNumberOfThreads() > $this->minimumNumberOfThreads) {
+                if ($thread->getSecondsSinceLastMessage() > $this->lazyThreadTimeoutSec) {
+                    $thread->kill();
+                    unset($this->threadsLazy[$id]);
+                }
+            } else {
+                //minimum reached
+                break;
+            }
+        }
+
+        //create threads 2 threads are preloaded
+        while ($this->getNumberOfThreads() < $this->minimumNumberOfThreads || ($this->getNumberOfThreads() < $this->maximumNumberOfThreads && $this->getNumberOfThreadsLazy() < 2)) {
+            $thread = $this->createThreadRunning();
+            $this->threadsLazy[spl_object_hash($thread)] = $thread;
+        }
+    }
+
+    public function getNumberOfThreads()
+    {
+        return count($this->threadsLazy) + count($this->threadsWorking);
+    }
+
+    public function getNumberOfThreadsLazy()
+    {
+        return count($this->threadsLazy);
+    }
+
+    public function __call($name, $arguments)
+    {
+        if (method_exists($this->threadClass, $name)) {
+            $threadToCall = array_pop($this->threadsLazy);
+            if ($threadToCall === null) {
+                if ($this->getNumberOfThreads() >= $this->maximumNumberOfThreads) {
+                    throw new \RuntimeException("Maximum number of threads reached. Increase the maximum or limit your calls");
+                } else {
+                    $threadToCall = $this->createThreadRunning();
+                }
+            }
+            $result = call_user_func_array(array($threadToCall, $name), $arguments);
+            //is async?
+            if ($result instanceof MessageFormat && false === $result->isIsResolved()) {
+                $originalCallback = $result->getResolvedCallback();
+                //wrap message callback to handle multiple messages at once
+                $newCallback = function (MessageFormat $message) use ($originalCallback, $threadToCall) {
+                    if ($message->isIsResolved()) {
+                        unset($this->threadsWorking[spl_object_hash($threadToCall)]);
+                        $this->threadsLazy[spl_object_hash($threadToCall)] = $threadToCall;
+
+                        $this->CheckThreadLimits();
+
+                        if (count($this->threadsWorking) <= 0 && $this->lazyThreadTimeoutSec > 0) {
+                            $this->loop->addTimer($this->lazyThreadTimeoutSec, function () {
+                                $this->CheckThreadLimits();
+                            });
+                        }
+                    }
+
+                    if (is_callable($originalCallback)) {
+                        $originalCallback($message);
+                    }
+                };
+
+                $result->setResolvedCallback($newCallback);
+
+                $this->threadsWorking[spl_object_hash($threadToCall)] = $threadToCall;
+
+                $this->CheckThreadLimits();
+            } else {
+                $this->threadsLazy[spl_object_hash($threadToCall)] = $threadToCall;
+            }
         }
         else
         {
-            throw new InvalidArgumentException("The given Thread is not connected at this moment.");
+            throw new InvalidArgumentException("Method $this->threadClass::$name does not exists or is not accessable");
         }
     }
 
     /**
-     * Checks if the thread is connected. Sometimes it can take some seconds
-     * for the thread to connect. Also its possible that the thread stopped working
-     * @param ClientThread $thread
-     * @return bool
+     * @return ThreadBase
      */
-    public function isConnected(ClientThread $thread)
+    protected function createThreadRunning()
     {
-        return isset($this->connections[$thread->getId()]);
+        $class = $this->threadClass;
+        $thread = new $class($this->loop);
+        $thread->start();
+        return $thread;
     }
 }

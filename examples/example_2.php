@@ -5,8 +5,8 @@
 
 use React\EventLoop\Timer\TimerInterface;
 use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
-use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\ThreadBase;
+use RogerWaters\ReactThreads\ThreadCommunicator;
 
 include('./../vendor/autoload.php');
 
@@ -16,7 +16,11 @@ include('./../vendor/autoload.php');
  */
 class EchoThread extends ThreadBase
 {
-    protected function InitializeExternal(ForkableLoopInterface $loop)
+    /**
+     * Initialize your logic and do whatever you want external
+     * @param ThreadCommunicator $communicator
+     */
+    public function InitializeExternal(ThreadCommunicator $communicator)
     {
         //your complicated work goes here
         for($i = 0; $i < 10; $i++)
@@ -32,7 +36,7 @@ $loop = ForkableFactory::create();
 $thread = new EchoThread($loop);
 
 //Let the thread work for some seconds then kill and start again
-$loop->addPeriodicTimer(3,function(TimerInterface $timer) use ($thread)
+$loop->addPeriodicTimer(3, function () use ($thread)
 {
     //check if thread is running
     if ($thread->isRunning())

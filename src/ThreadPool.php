@@ -239,6 +239,7 @@ class ThreadPool
     protected function createThreadRunning()
     {
         $class = $this->threadClass;
+        /** @var ThreadBase $thread */
         $thread = new $class($this->loop);
         $thread->start();
         return $thread;

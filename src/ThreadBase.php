@@ -8,9 +8,8 @@
 
 namespace RogerWaters\ReactThreads;
 
-use React\EventLoop\LoopInterface;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
-use RogerWaters\ReactThreads\Protocol\MessageFormat;
+use RogerWaters\ReactThreads\Protocol\AsyncMessage;
 
 abstract class ThreadBase implements IThreadComponent
 {
@@ -108,6 +107,18 @@ abstract class ThreadBase implements IThreadComponent
     }
 
     /**
+     * Stop thread after current works done and return
+     */
+    public function join()
+    {
+        if ($this->isExternal()) {
+            $this->communicator->getLoop()->stop();
+        } else {
+            $this->callOnChild(__FUNCTION__, func_get_args());
+        }
+    }
+
+    /**
      * Encode and send the message to the parent
      * will call method $action on this instance in the parent context
      * @param string $action
@@ -132,13 +143,14 @@ abstract class ThreadBase implements IThreadComponent
      * @param string $action
      * @param array $parameters
      * @param callable $onResult
-     * @return MessageFormat
+     * @param callable $onError
+     * @return AsyncMessage
      */
-    protected function asyncCallOnParent($action, array $parameters = array(), callable $onResult = null)
+    protected function asyncCallOnParent($action, array $parameters = array(), callable $onResult = null, callable $onError = null)
     {
         if ($this->isExternal())
         {
-            return $this->communicator->SendMessageAsync($this->encode($action, $parameters), $onResult);
+            return $this->communicator->SendMessageAsync($this->encode($action, $parameters), $onResult, $onError);
         } else {
             throw new \RuntimeException("Calling ClientThread::CallOnParent from Parent context. Did you mean ClientThread::CallOnChild?");
         }
@@ -169,9 +181,10 @@ abstract class ThreadBase implements IThreadComponent
      * @param string $action
      * @param array $parameters
      * @param callable $onResult
-     * @return MessageFormat
+     * @param callable $onError
+     * @return AsyncMessage
      */
-    protected function asyncCallOnChild($action, array $parameters = array(), callable $onResult = null)
+    protected function asyncCallOnChild($action, array $parameters = array(), callable $onResult = null, callable $onError = null)
     {
         if($this->isExternal())
         {
@@ -179,7 +192,7 @@ abstract class ThreadBase implements IThreadComponent
         }
         else
         {
-            return $this->communicator->SendMessageAsync($this->encode($action, $parameters), $onResult);
+            return $this->communicator->SendMessageAsync($this->encode($action, $parameters), $onResult, $onError);
         }
     }
 
@@ -207,11 +220,11 @@ abstract class ThreadBase implements IThreadComponent
      * @param $minimumNumberOfThreads
      * @param int $maximumNumberOfThreads
      * @param int $lazyThreadTimeoutSec
-     * @return self|ThreadPool
+     * @return self|LoadBalancer
      */
-    public static function CreatePooled(ForkableLoopInterface $loop, $minimumNumberOfThreads, $maximumNumberOfThreads = 32, $lazyThreadTimeoutSec = 60)
+    public static function CreateLoadBalancer(ForkableLoopInterface $loop, $minimumNumberOfThreads, $maximumNumberOfThreads = 32, $lazyThreadTimeoutSec = 60)
     {
-        $pool = new ThreadPool($loop, get_called_class(), $minimumNumberOfThreads, $maximumNumberOfThreads, $lazyThreadTimeoutSec);
+        $pool = new LoadBalancer($loop, get_called_class(), $minimumNumberOfThreads, $maximumNumberOfThreads, $lazyThreadTimeoutSec);
         return $pool;
     }
 }

@@ -6,9 +6,9 @@
 use React\EventLoop\Timer\TimerInterface;
 use RogerWaters\ReactThreads\ClientThread;
 use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
-use RogerWaters\ReactThreads\Protocol\MessageFormat;
+use RogerWaters\ReactThreads\Protocol\AsyncMessage;
 use RogerWaters\ReactThreads\ThreadCommunicator;
-use RogerWaters\ReactThreads\ThreadPool;
+use RogerWaters\ReactThreads\LoadBalancer;
 
 include('./../vendor/autoload.php');
 
@@ -22,7 +22,7 @@ class DownloaderThread extends \RogerWaters\ReactThreads\ThreadBase
      * Function for downloading urls external
      * @param string $url
      * @param callable $onComplete
-     * @return MessageFormat|string
+     * @return AsyncMessage|string
      */
     public function download($url, callable $onComplete = null)
     {
@@ -82,7 +82,7 @@ foreach ($urls as $url)
 {
     //tell the thread to download the url
     //you can provide a callback to get directly informed on complete
-    $thread->download($url, function (MessageFormat $message) use ($url)
+    $thread->download($url, function (AsyncMessage $message) use ($url)
     {
         //check if the message is resolved.
         //this is for future compatibility to provide progress

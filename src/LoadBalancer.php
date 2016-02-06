@@ -2,7 +2,7 @@
 namespace RogerWaters\ReactThreads;
 use InvalidArgumentException;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
-use RogerWaters\ReactThreads\Protocol\MessageFormat;
+use RogerWaters\ReactThreads\Protocol\AsyncMessage;
 
 /**
  * Created by PhpStorm.
@@ -10,7 +10,7 @@ use RogerWaters\ReactThreads\Protocol\MessageFormat;
  * Date: 18.01.2016
  * Time: 16:44
  */
-class ThreadPool
+class LoadBalancer
 {
     /**
      * @var ForkableLoopInterface
@@ -196,10 +196,10 @@ class ThreadPool
             }
             $result = call_user_func_array(array($threadToCall, $name), $arguments);
             //is async?
-            if ($result instanceof MessageFormat && false === $result->isIsResolved()) {
+            if ($result instanceof AsyncMessage && false === $result->isIsResolved()) {
                 $originalCallback = $result->getResolvedCallback();
                 //wrap message callback to handle multiple messages at once
-                $newCallback = function (MessageFormat $message) use ($originalCallback, $threadToCall) {
+                $newCallback = function (AsyncMessage $message) use ($originalCallback, $threadToCall) {
                     if ($message->isIsResolved()) {
                         unset($this->threadsWorking[spl_object_hash($threadToCall)]);
                         $this->threadsLazy[spl_object_hash($threadToCall)] = $threadToCall;

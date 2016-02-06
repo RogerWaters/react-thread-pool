@@ -12,7 +12,7 @@ namespace RogerWaters\ReactThreads;
 use Evenement\EventEmitterTrait;
 use React\EventLoop\Timer\TimerInterface;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
-use RogerWaters\ReactThreads\Protocol\MessageFormat;
+use RogerWaters\ReactThreads\Protocol\AsyncMessage;
 
 class ThreadCommunicator
 {
@@ -54,7 +54,7 @@ class ThreadCommunicator
     private $connection;
 
     /**
-     * @var MessageFormat[]
+     * @var AsyncMessage[]
      */
     private $messagesToWaitFor = array();
     /**
@@ -93,6 +93,9 @@ class ThreadCommunicator
             try {
                 $this->isExternal = true;
                 $this->childPid = posix_getpid();
+
+                set_error_handler(array(ThreadConfig::GetErrorHandler(), 'OnUncaughtErrorTriggered'));
+
                 $this->loop = $this->loop->afterForkChild();
 
                 fclose($sockets[1]);
@@ -106,7 +109,9 @@ class ThreadCommunicator
                 });
                 $this->loop->run();
             } catch (\Exception $e) {
-                $this->emit('child_error', array($this, $e));
+                $handler = ThreadConfig::GetErrorHandler();
+                $result = @$handler->OnUncaughtException($e);
+                //no more chance to handle here :-(
             }
             exit();
         } else {
@@ -144,16 +149,31 @@ class ThreadCommunicator
         }
     }
 
-    protected function AttachMessage(MessageFormat $message)
+    protected function AttachMessage(AsyncMessage $message)
     {
         $this->lastConnectionPing = microtime(true);
         //resolved an previous call
-        if (isset($this->messagesToWaitFor[$message->getId()]) && $message->isIsResolved()) {
-            $this->messagesToWaitFor[$message->getId()]->Resolve($message->GetResult());
-            unset($this->messagesToWaitFor[$message->getId()]);
+        if (isset($this->messagesToWaitFor[$message->getId()])) {
+            if ($message->isIsResolved()) {
+                $this->messagesToWaitFor[$message->getId()]->Resolve($message->GetResult());
+                unset($this->messagesToWaitFor[$message->getId()]);
+            } elseif ($message->isIsError()) {
+                $this->messagesToWaitFor[$message->getId()]->Error($message->GetResult());
+                unset($this->messagesToWaitFor[$message->getId()]);
+            } else {
+                //Not jet implemented
+                //allow for partial results like progress and so on
+            }
         } else {
-            $result = $this->messageHandler->handleMessage($this, $message->GetPayload());
-            $message->Resolve($result);
+            try {
+                $result = $this->messageHandler->handleMessage($this, $message->GetPayload());
+                $message->Resolve($result);
+            } catch (\Exception $e) {
+                $handler = ThreadConfig::GetErrorHandler();
+                $result = @$handler->OnUncaughtException($e);
+                $message->Error($result);
+            }
+
             //process answer
             if ($message->isIsSync()) {
                 //the calling thread is waiting for an answer so send as fast as possible
@@ -167,9 +187,12 @@ class ThreadCommunicator
         //no answer has to be processed :-)
     }
 
-    public function SendMessageAsync($message, callable $resolveCallback = null)
+    public function SendMessageAsync($message, callable $resolveCallback = null, callable $errorCallback = null)
     {
-        $message = new MessageFormat($message, false, $resolveCallback);
+        $message = new AsyncMessage($message, false);
+        $message->setResolvedCallback($resolveCallback);
+        $message->setErrorCallback($errorCallback);
+
         $this->messagesToWaitFor[$message->getId()] = $message;
 
         $this->connection->writeAsync($message);
@@ -179,14 +202,20 @@ class ThreadCommunicator
 
     public function SendMessageSync($message)
     {
-        $message = new MessageFormat($message, true);
+        $message = new AsyncMessage($message, true);
         $this->messagesToWaitFor[$message->getId()] = $message;
         $this->connection->writeSync($message);
 
         //read until message is resolved
-        while ($message->isIsResolved() === false) {
+        while ($message->isIsResolved() === false && $message->isIsError() === false) {
             $this->connection->readSync();
         }
+
+        if ($message->isIsError()) {
+            $result = $message->GetResult();
+            return ThreadConfig::GetErrorHandler()->OnErrorMessageReachParent($result);
+        }
+
         return $message->GetResult();
     }
 

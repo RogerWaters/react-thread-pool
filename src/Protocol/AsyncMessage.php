@@ -9,7 +9,7 @@
 namespace RogerWaters\ReactThreads\Protocol;
 
 
-class MessageFormat implements \Serializable
+class AsyncMessage implements \Serializable
 {
     /**
      * @var bool
@@ -19,6 +19,11 @@ class MessageFormat implements \Serializable
      * @var mixed
      */
     protected $result;
+    /**
+     * @var bool
+     */
+    protected $resultIsError = false;
+
     /**
      * @var string
      */
@@ -32,6 +37,12 @@ class MessageFormat implements \Serializable
      * @var callable
      */
     private $resolvedCallback;
+
+    /**
+     * @var callable
+     */
+    private $errorCallback;
+
     /**
      * @var bool
      */
@@ -41,14 +52,12 @@ class MessageFormat implements \Serializable
      * MessageFormat constructor.
      * @param $payload
      * @param $isSync
-     * @param null|callable $resolvedCallback
      */
-    public function __construct($payload, $isSync, callable $resolvedCallback = null)
+    public function __construct($payload, $isSync)
     {
         $this->payload = $payload;
         $this->id = posix_getpid() . '-' . spl_object_hash($this);
         $this->isResolved = false;
-        $this->resolvedCallback = $resolvedCallback;
         $this->isSync = $isSync;
     }
 
@@ -94,6 +103,14 @@ class MessageFormat implements \Serializable
     public function isIsResolved()
     {
         return $this->isResolved;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isIsError()
+    {
+        return $this->resultIsError;
     }
 
     /**
@@ -145,8 +162,33 @@ class MessageFormat implements \Serializable
     /**
      * @param callable $resolvedCallback
      */
-    public function setResolvedCallback(callable $resolvedCallback)
+    public function setResolvedCallback(callable $resolvedCallback = null)
     {
         $this->resolvedCallback = $resolvedCallback;
+    }
+
+    /**
+     * @return callable
+     */
+    public function getErrorCallback()
+    {
+        return $this->errorCallback;
+    }
+
+    /**
+     * @param callable $errorCallback
+     */
+    public function setErrorCallback(callable $errorCallback = null)
+    {
+        $this->errorCallback = $errorCallback;
+    }
+
+    public function Error($result)
+    {
+        $this->result = $result;
+        $this->resultIsError = true;
+        if (is_callable($this->errorCallback)) {
+            call_user_func($this->errorCallback, $this);
+        }
     }
 }

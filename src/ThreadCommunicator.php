@@ -11,6 +11,7 @@ namespace RogerWaters\ReactThreads;
 
 use Evenement\EventEmitterTrait;
 use React\EventLoop\Timer\TimerInterface;
+use RogerWaters\ReactThreads\ErrorHandling\SerializableFatalException;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\Protocol\AsyncMessage;
 
@@ -68,6 +69,18 @@ class ThreadCommunicator
     private $lastConnectionPing;
 
     /**
+     * temporary reference to current message to allow submit
+     * errors back to the call source
+     * @var null|AsyncMessage
+     */
+    private $messageInProgress = null;
+
+    /**
+     * @var TimerInterface
+     */
+    private $pidCollector;
+
+    /**
      * ThreadCommunicator constructor.
      * @param ForkableLoopInterface $loop
      * @param IThreadComponent $messageHandler
@@ -95,13 +108,30 @@ class ThreadCommunicator
                 $this->childPid = posix_getpid();
 
                 set_error_handler(array(ThreadConfig::GetErrorHandler(), 'OnUncaughtErrorTriggered'));
-
+                register_shutdown_function(function () {
+                    //catch fatal on some cases
+                    $fatalErrorCodes = array(E_ERROR, E_COMPILE_ERROR, E_PARSE);
+                    $error = error_get_last();
+                    if (is_array($error) && isset($error['type']) && in_array($error['type'], $fatalErrorCodes)) {
+                        $exception = new SerializableFatalException($error['message'], $error['file'], $error['line'], $error['type']);
+                        if ($this->messageInProgress instanceof AsyncMessage) {
+                            //mark as error and send back to parent
+                            $this->messageInProgress->Error($exception);
+                            $this->connection->writeSync($this->messageInProgress);
+                        } else {
+                            $message = new AsyncMessage(array(), true);
+                            $message->setIsOneWay(true);
+                            $message->Error($exception);
+                            $this->connection->writeSync($message);
+                        }
+                    }
+                });
                 $this->loop = $this->loop->afterForkChild();
 
                 fclose($sockets[1]);
                 $this->socket = $sockets[0];
                 $this->connection = new ThreadConnection($this->loop, $this->socket);
-                $this->connection->on('message', function ($connection, $message) {
+                $this->connection->on('message', function ($connection, AsyncMessage $message) {
                     $this->AttachMessage($message);
                 });
                 $this->loop->nextTick(function () {
@@ -111,6 +141,17 @@ class ThreadCommunicator
             } catch (\Exception $e) {
                 $handler = ThreadConfig::GetErrorHandler();
                 $result = @$handler->OnUncaughtException($e);
+                //redirect exception to client.
+                if ($this->messageInProgress instanceof AsyncMessage) {
+                    //mark as error and send back to parent
+                    $this->messageInProgress->Error($result);
+                    $this->connection->writeSync($this->messageInProgress);
+                } else {
+                    $message = new AsyncMessage(array(), true);
+                    $message->setIsOneWay(true);
+                    $message->Error($result);
+                    $this->connection->writeSync($message);
+                }
                 //no more chance to handle here :-(
             }
             exit();
@@ -122,31 +163,47 @@ class ThreadCommunicator
             $this->getLoop()->afterForkParent();
 
             $this->connection = new ThreadConnection($this->loop, $this->socket);
-            $this->connection->on('message', function ($connection, $message) {
+            $this->connection->on('message', function ($connection, AsyncMessage $message) {
                 $this->AttachMessage($message);
             });
             //keep an eye on the thread
-            $this->getLoop()->addPeriodicTimer(5, function (TimerInterface $timer) {
-                $donePid = pcntl_waitpid($this->childPid, $status, WNOHANG | WUNTRACED);
-                switch ($donePid) {
-                    case $this->childPid: //donePid is child pid
-                        //child done
-                        $this->isRunning = false;
-                        $timer->cancel();
-                        $this->emit('stopped', array($this->childPid, $status, $this));
-                        break;
-                    case 0: //donePid is empty
-                        //everything fine.
-                        //process still running
-                        break;
-                    case -1://donePid is unknown
-                    default:
-                        $this->emit('error', array(new \RuntimeException("$this->childPid PID returned unexpected status. Maybe its not a child of this.")));
-                        break;
-                }
+            $this->pidCollector = $this->getLoop()->addPeriodicTimer(5, function (TimerInterface $timer) {
+                $this->waitForCompletion($timer);
             });
             $this->childPid = $pid;
         }
+    }
+
+    private function waitForCompletion(TimerInterface $timer, $endless = false)
+    {
+        do {
+            $donePid = pcntl_waitpid($this->childPid, $status, WNOHANG | WUNTRACED);
+
+            switch ($donePid) {
+                case $this->childPid: //donePid is child pid
+                    //child done
+                    $this->isRunning = false;
+                    $timer->cancel();
+                    $this->emit('stopped', array($this->childPid, $status, $this));
+                    return;
+                case 0: //donePid is empty
+                    //everything fine.
+                    //process still running
+                    if ($endless === true) {
+                        usleep(100);
+                    }
+                    break;
+                case -1://donePid is unknown
+                default:
+                    $this->emit('error', array(new \RuntimeException("$this->childPid PID returned unexpected status. Maybe its not a child of this.")));
+                    return;
+            }
+        } while ($endless === true);
+    }
+
+    public function WaitUntilChildCompleted()
+    {
+        $this->waitForCompletion($this->pidCollector, true);
     }
 
     protected function AttachMessage(AsyncMessage $message)
@@ -164,8 +221,20 @@ class ThreadCommunicator
                 //Not jet implemented
                 //allow for partial results like progress and so on
             }
+        } elseif ($message->isIsOneWay()) {
+            if ($message->isIsError()) {
+                ThreadConfig::GetErrorHandler()->OnErrorMessageReachParent($message->GetResult());
+            } else {
+                try {
+                    $this->messageHandler->handleMessage($this, $message->GetPayload());
+                } catch (\Exception $e) {
+                    $ex = ThreadConfig::GetErrorHandler()->OnUncaughtException($e);
+                    ThreadConfig::GetErrorHandler()->OnErrorMessageReachParent($ex);
+                }
+            }
         } else {
             try {
+                $this->messageInProgress = $message;
                 $result = $this->messageHandler->handleMessage($this, $message->GetPayload());
                 $message->Resolve($result);
             } catch (\Exception $e) {
@@ -173,6 +242,7 @@ class ThreadCommunicator
                 $result = @$handler->OnUncaughtException($e);
                 $message->Error($result);
             }
+            $this->messageInProgress = null;
 
             //process answer
             if ($message->isIsSync()) {

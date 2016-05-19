@@ -8,7 +8,6 @@ use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
 use RogerWaters\ReactThreads\EventLoop\ForkableLoopInterface;
 use RogerWaters\ReactThreads\ThreadBase;
 use RogerWaters\ReactThreads\ThreadCommunicator;
-use RogerWaters\ReactThreads\LoadBalancer;
 
 include('./../vendor/autoload.php');
 

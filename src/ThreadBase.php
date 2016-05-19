@@ -118,6 +118,11 @@ abstract class ThreadBase implements IThreadComponent
         }
     }
 
+    public function wait()
+    {
+        $this->communicator->WaitUntilChildCompleted();
+    }
+
     /**
      * Encode and send the message to the parent
      * will call method $action on this instance in the parent context

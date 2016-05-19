@@ -63,15 +63,11 @@ class SerializableException /*implements \Throwable PHP 7 only*/
     {
         $traceData = $this->trace;
 
-        foreach ($traceData as $id => &$functionCall) {
-            if (isset($functionCall['args'])) {
-                foreach ($functionCall['args'] as $key => $arg) {
-                    if ($arg instanceof \Closure) {
-                        $functionCall['args'][$key] = 'object(Closure)';
-                    }
-                }
+        array_walk_recursive($traceData, function (&$value) {
+            if (is_object($value)) {
+                $value = var_export($value, true);
             }
-        }
+        });
 
         $this->trace = $traceData;
     }

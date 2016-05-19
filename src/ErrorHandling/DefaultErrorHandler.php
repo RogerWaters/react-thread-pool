@@ -54,6 +54,11 @@ class DefaultErrorHandler implements IThreadErrorHandler
     public function OnErrorMessageReachParent($result)
     {
         if ($result instanceof SerializableException) {
+            if ($result instanceof SerializableFatalException) {
+                //Fatal exception should be handled separate
+                //This should be tracked on parent
+                throw new ThreadFatalException($result->getMessage() . PHP_EOL . PHP_EOL . $result->getTraceAsString(), $result->getCode());
+            }
             //best is to log all the exception information here
             //you can also inject the variables into normal exception using reflection
             throw new \Exception($result->getMessage() . PHP_EOL . PHP_EOL . $result->getTraceAsString(), $result->getCode());

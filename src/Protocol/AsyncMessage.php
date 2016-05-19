@@ -49,6 +49,11 @@ class AsyncMessage implements \Serializable
     private $isSync;
 
     /**
+     * @var bool
+     */
+    private $isOneWay = false;
+
+    /**
      * MessageFormat constructor.
      * @param $payload
      * @param $isSync
@@ -132,6 +137,7 @@ class AsyncMessage implements \Serializable
         $data = get_object_vars($this);
         //exclude closure
         unset($data['resolvedCallback']);
+        unset($data['errorCallback']);
         return serialize($data);
     }
 
@@ -190,5 +196,21 @@ class AsyncMessage implements \Serializable
         if (is_callable($this->errorCallback)) {
             call_user_func($this->errorCallback, $this);
         }
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isIsOneWay()
+    {
+        return $this->isOneWay;
+    }
+
+    /**
+     * @param boolean $isOneWay
+     */
+    public function setIsOneWay($isOneWay)
+    {
+        $this->isOneWay = $isOneWay;
     }
 }

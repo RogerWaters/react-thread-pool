@@ -3,12 +3,9 @@
  * Example shows how to communicate with Threads
  */
 
-use React\EventLoop\Timer\TimerInterface;
-use RogerWaters\ReactThreads\ClientThread;
 use RogerWaters\ReactThreads\EventLoop\ForkableFactory;
 use RogerWaters\ReactThreads\Protocol\AsyncMessage;
 use RogerWaters\ReactThreads\ThreadCommunicator;
-use RogerWaters\ReactThreads\LoadBalancer;
 
 include('./../vendor/autoload.php');
 

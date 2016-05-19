@@ -6,8 +6,7 @@
  * Time: 10:08
  */
 
-namespace ErrorHandling;
-
+namespace RogerWaters\ReactThreads\ErrorHandling;
 
 class PHPTriggerErrorException extends \Exception
 {

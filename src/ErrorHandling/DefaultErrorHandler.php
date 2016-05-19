@@ -8,9 +8,6 @@
 
 namespace RogerWaters\ReactThreads\ErrorHandling;
 
-
-use ErrorHandling\PHPTriggerErrorException;
-
 class DefaultErrorHandler implements IThreadErrorHandler
 {
     /**
